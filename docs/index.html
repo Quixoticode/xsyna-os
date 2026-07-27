@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>xSyna Docs — Was ist xSyna?</title>
-    <meta name="description" content="Deutsche Dokumentation von xSyna: Biografie, Produkte, Lizenz." />
+    <title>xSyna Docs — Ökosystem, Admin-Panel &amp; Account</title>
+    <meta name="description" content="Deutsche Dokumentation von xSyna: Biografie, Produkte, Admin-Panel, Account-System, Lizenz." />
     <link rel="icon" type="image/svg+xml" href="/xyna-logo.svg" />
   </head>
   <body>
@@ -17,7 +17,7 @@
             <defs>
               <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stop-color="#22D3EE" />
-                <stop offset="100%" stop-color="#FBF924" />
+                <stop offset="100%" stop-color="#FBBF24" />
               </linearGradient>
             </defs>
             <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
@@ -35,61 +35,103 @@
     </header>
 
     <main style="padding-top: 96px; padding-bottom: 96px;">
-      <div class="container" style="max-width: 800px;">
+      <div class="container" style="max-width: 900px;">
         <div class="reveal" style="margin-bottom: 64px;">
           <div class="badge-inline" style="margin-bottom: 20px;">DOCUMENTATION</div>
-          <h1 class="heading-hero">Was ist <span class="text-gradient">xSyna?</span></h1>
-          <p style="color: var(--text-secondary); font-size: 1.1rem; line-height: 1.7; margin-bottom: 24px;">
-            <strong>xSyna</strong> wurde von <em>Jake Ruck</em> 2026 ins Leben gerufen. Als eines von vielen Projekten hatte es anfangs einen experimentellen Zweck: <em>ist eine digitale Intelligenz auf günstiger Hardware möglich?</em>
-          </p>
-          <p style="color: var(--text-secondary); line-height: 1.7;">
-            Die Antwort ist ja. Nach dem gelungenen Experiment ging es um die Problemlösung: Man braucht neue Hardware, Software und Bridges. Alles sollte neu gemacht werden mit einem neuromorphen Ansatz.
+          <h1 class="heading-hero">xSyna <span class="text-gradient">Dokumentation</span></h1>
+          <p style="color: var(--text-secondary); font-size: 1.1rem; line-height: 1.7;">
+            Alles über das xSyna Ökosystem, das Admin-Panel, das Account-System und die Zukunft neuronaler, lokaler KI.
           </p>
         </div>
 
         <section class="reveal" style="margin-bottom: 64px;">
-          <h2 class="heading-section">Wo genau liegt das Problem?</h2>
+          <h2 class="heading-section">Was ist xSyna?</h2>
           <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 16px;">
-            Das Problem liegt bereits an den gängigen Architekturen (x86, ARM, …), da diese mit <strong style="color: var(--text);">Zahlen</strong> arbeiten: 0 und 1.
+            <strong>xSyna</strong> wurde von <em>Jake Ruck</em> 2026 ins Leben gerufen. Ziel ist ein Ökosystem neuronaler, lokaler KI-Systeme, die Daten souverän beim Nutzer lassen.
           </p>
           <p style="color: var(--text-secondary); line-height: 1.7;">
-            Dies macht die Entwicklung einer Intelligenz schwerer: der <em>Energieverbrauch</em> steigt durch größere Zahlen, sie funktionieren nach <em>Wahrscheinlichkeitsprinzipien</em> und sind einfach <em>lokal nicht leistungsfähig genug</em>.
+            Die Antwort auf günstige, lokale Intelligenz ist ja — aber sie erfordert neue Hardware, neue Software und neue Bridges. Der Ansatz ist neuromorph: statt Zahlen zu verrechnen, arbeiten wir mit Spikes wie im menschlichen Gehirn.
           </p>
         </section>
 
         <section class="reveal" style="margin-bottom: 64px;">
-          <h2 class="heading-section">Das Ziel</h2>
-          <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 32px;">
-            Am „Ende" sollte ein großes Ökosystem verfügbar sein, mit folgenden Produkten:
-          </p>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+          <h2 class="heading-section">Produkte</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
             <div class="card card-sm">
-              <h3 style="color: var(--cyan); margin-bottom: 8px; font-size: 1.1rem;">SynAI</h3>
-              <p class="card-text"><strong>Deine</strong> persönliche Intelligenz. Lernfähig, lokal und mit deinem Einverständnis kollektiv austauschbar.</p>
+              <img src="/xsyn-icon.svg" alt="xSyn" style="width: 48px; height: 48px; margin-bottom: 16px;" />
+              <h3 style="color: var(--cyan); margin-bottom: 8px; font-size: 1.1rem;">xSyn</h3>
+              <p class="card-text">Neuromorpher Chip mit spikebasierter Architektur für effiziente, lokal lernende Intelligenz.</p>
             </div>
             <div class="card card-sm">
-              <h3 style="color: var(--amber); margin-bottom: 8px; font-size: 1.1rem;">xSyn Chip</h3>
-              <p class="card-text">Der <strong>neuromorphe Intelligenz-Chip</strong> kopiert das menschliche Gehirn mit Spikes statt Zahlen.</p>
+              <img src="/synai-icon.svg" alt="SynAI" style="width: 48px; height: 48px; margin-bottom: 16px;" />
+              <h3 style="color: var(--amber); margin-bottom: 8px; font-size: 1.1rem;">SynAI</h3>
+              <p class="card-text">Persönliche KI, die lokal mit dir lernt und nur mit Einverständnis kollektiv austauscht.</p>
             </div>
             <div class="card card-sm">
-              <h3 style="color: var(--cyan); margin-bottom: 8px; font-size: 1.1rem;">Weights</h3>
-              <p class="card-text">Wie in der Biologie lernen die Neuronen dazu. Die Weights werden in einer .syn-Datei gespeichert.</p>
-            </div>
-            <div class="card card-sm">
-              <h3 style="color: var(--amber); margin-bottom: 8px; font-size: 1.1rem;">SynBridge</h3>
-              <p class="card-text">Bytes in Spikes übersetzen und umgekehrt — so funktionieren die Systeme auf handelsüblichen Geräten.</p>
+              <img src="/xs-labs-icon.svg" alt="xSyna Labs" style="width: 48px; height: 48px; margin-bottom: 16px;" />
+              <h3 style="color: var(--cyan); margin-bottom: 8px; font-size: 1.1rem;">xSyna Labs</h3>
+              <p class="card-text">Forschungs- und Experimentierraum für neue Hardware, Bridges und Prototypen.</p>
             </div>
           </div>
         </section>
 
         <section class="reveal" style="margin-bottom: 64px;">
-          <h2 class="heading-section">Warum ausgerechnet jetzt?</h2>
-          <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 16px;">
-            Wir befinden uns im <strong style="color: var(--text);">KI-Zeitalter</strong>: Konzerne nehmen nicht nur Strom und Ressourcen, sondern auch Daten. Was wäre, wenn wir nichts an die Cloud verkaufen und gleichzeitig einen Assistenten in unserer Hand haben?
+          <h2 class="heading-section">Das Ökosystem</h2>
+          <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 24px;">
+            Das xSyna Ökosystem verbindet Hardware, Software und Menschen. Es umfasst:
           </p>
-          <p style="color: var(--text-secondary); line-height: 1.7;">
-            Aktuelle Forschungen beschäftigen sich bereits mit AGI und ASI. Diese Technik kann hilfreich sein — aber jeder sollte sie in der eigenen Hand haben.
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
+            <div class="card card-sm">
+              <h3 style="color: var(--cyan); margin-bottom: 8px; font-size: 1.05rem;">xSyna Account</h3>
+              <p class="card-text">Zentrales Konto für Produkte, Support, Beta-Zugang und persönliches Dashboard.</p>
+            </div>
+            <div class="card card-sm">
+              <h3 style="color: var(--cyan); margin-bottom: 8px; font-size: 1.05rem;">Admin-Panel</h3>
+              <p class="card-text">Verwaltung von Accounts, Rollen, Wartungsmodus und Berechtigungen unter /internal-services.</p>
+            </div>
+            <div class="card card-sm">
+              <h3 style="color: var(--amber); margin-bottom: 8px; font-size: 1.05rem;">SSO &amp; Passkey</h3>
+              <p class="card-text">Login per Magic-Link, Passkey und Third-Party-SSO (Phase 2) für alle xSyna-Dienste.</p>
+            </div>
+            <div class="card card-sm">
+              <h3 style="color: var(--amber); margin-bottom: 8px; font-size: 1.05rem;">Integrierte Apps</h3>
+              <p class="card-text">CRM, Support, Zeiterfassung, Chat, Docs-Editor, Game und Mini-SynAI im Dashboard.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="reveal" style="margin-bottom: 64px;">
+          <h2 class="heading-section">Admin-Panel</h2>
+          <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 24px;">
+            Das Admin-Panel ist unter <code>/internal-services</code> erreichbar und bietet:
           </p>
+          <ul style="color: var(--text-secondary); line-height: 1.8; margin-left: 20px; margin-bottom: 24px;">
+            <li>Benutzer- und Rollenverwaltung (Admin, User, Support)</li>
+            <li>Wartungsmodus mit animiertem Screen, Fortschrittsbalken und Status</li>
+            <li>Beta-Zugangsverwaltung</li>
+            <li>Systemstatus und Konfiguration</li>
+          </ul>
+        </section>
+
+        <section class="reveal" style="margin-bottom: 64px;">
+          <h2 class="heading-section">Account &amp; Permissions</h2>
+          <p style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 24px;">
+            Jeder xSyna Account hat Zugriff auf sein persönliches Panel. Berechtigungen steuern den Zugriff auf Admin-Funktionen, Beta-Produkte und interne Tools.
+          </p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+            <div class="card card-sm" style="text-align: center;">
+              <h3 style="color: var(--cyan); font-size: 1rem; margin-bottom: 4px;">Admin</h3>
+              <p class="card-text" style="font-size: 0.85rem;">Vollzugriff auf Panel, Nutzer und Wartungsmodus.</p>
+            </div>
+            <div class="card card-sm" style="text-align: center;">
+              <h3 style="color: var(--amber); font-size: 1rem; margin-bottom: 4px;">Beta</h3>
+              <p class="card-text" style="font-size: 0.85rem;">Zugriff auf experimentelle Produkte und Features.</p>
+            </div>
+            <div class="card card-sm" style="text-align: center;">
+              <h3 style="color: var(--text); font-size: 1rem; margin-bottom: 4px;">User</h3>
+              <p class="card-text" style="font-size: 0.85rem;">Standardzugriff auf Account, Support und Docs.</p>
+            </div>
+          </div>
         </section>
 
         <section id="license" class="reveal" style="margin-bottom: 64px;">

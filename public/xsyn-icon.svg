@@ -1,0 +1,13 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="xsynGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE" />
+      <stop offset="100%" stop-color="#FBBF24" />
+    </linearGradient>
+  </defs>
+  <rect x="28" y="28" width="72" height="72" rx="16" fill="none" stroke="url(#xsynGrad)" stroke-width="8" />
+  <path d="M48 28 C48 12, 32 12, 32 28" fill="none" stroke="#22D3EE" stroke-width="6" stroke-linecap="round" />
+  <path d="M80 28 C80 12, 96 12, 96 28" fill="none" stroke="#FBBF24" stroke-width="6" stroke-linecap="round" />
+  <path d="M48 100 C48 116, 32 116, 32 100" fill="none" stroke="#FBBF24" stroke-width="6" stroke-linecap="round" />
+  <path d="M80 100 C80 116, 96 116, 96 100" fill="none" stroke="#22D3EE" stroke-width="6" stroke-linecap="round" />
+</svg>

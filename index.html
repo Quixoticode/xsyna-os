@@ -17,7 +17,7 @@
             <defs>
               <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stop-color="#22D3EE" />
-                <stop offset="100%" stop-color="#FBF924" />
+                <stop offset="100%" stop-color="#FBBF24" />
               </linearGradient>
             </defs>
             <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
@@ -30,6 +30,7 @@
 
         <div class="nav-links">
           <a href="#ecosystem" class="nav-link">Ökosystem</a>
+          <a href="#products" class="nav-link">Produkte</a>
           <a href="#news" class="nav-link">Neuigkeiten</a>
           <a href="#jobs" class="nav-link">Jobs</a>
           <a href="/docs" class="nav-link">Docs</a>
@@ -56,26 +57,17 @@
                 xSyna baut ein Ökosystem neuronaler, lokaler KI-Systeme. Wir verabschieden uns von starren Architekturen und erschaffen Technologie, die mit dir lernt.
               </p>
               <div class="hero-buttons">
-                <a href="#ecosystem" class="btn btn-primary">Ökosystem erkunden</a>
+                <a href="#products" class="btn btn-primary">Produkte entdecken</a>
                 <a href="/docs" class="btn btn-secondary">Dokumentation</a>
               </div>
               <div class="hero-stats">
-                <div>
-                  <div class="stat-number">128</div>
-                  <div class="stat-label">Test-Neuronen</div>
-                </div>
-                <div>
-                  <div class="stat-number">0</div>
-                  <div class="stat-label">Cloud-Abhängig</div>
-                </div>
-                <div>
-                  <div class="stat-number">∞</div>
-                  <div class="stat-label">Lernpotenzial</div>
-                </div>
+                <div><div class="stat-number">128</div><div class="stat-label">Test-Neuronen</div></div>
+                <div><div class="stat-number">0</div><div class="stat-label">Cloud-Abhängig</div></div>
+                <div><div class="stat-number">∞</div><div class="stat-label">Lernpotenzial</div></div>
               </div>
             </div>
 
-            <div class="reveal" style="display: none;">
+            <div class="reveal" style="display: block;">
               <div class="terminal">
                 <div class="terminal-header">
                   <span class="terminal-dot terminal-dot-red"></span>
@@ -95,7 +87,33 @@
         </div>
       </section>
 
-      <section id="ecosystem" class="section" style="background: var(--bg-elevated);">
+      <section id="products" class="section" style="background: var(--bg-elevated);">
+        <div class="container">
+          <div class="section-header-center reveal">
+            <h2 class="heading-section">Unsere <span class="text-gradient">Produkte</span></h2>
+            <p class="text-secondary" style="font-size: 1.05rem;">Drei Säulen bilden das xSyna Ökosystem.</p>
+          </div>
+          <div class="features-grid">
+            <article class="card reveal" style="text-align: center;">
+              <img src="/xsyn-icon.svg" alt="xSyn" style="width: 64px; height: 64px; margin: 0 auto 20px;" />
+              <h3 class="card-title">xSyn</h3>
+              <p class="card-text">Der neuromorphe Chip, der elektronische Spikes statt Zahlen verrechnet — biologisch inspiriert und energieeffizient.</p>
+            </article>
+            <article class="card reveal" style="text-align: center;">
+              <img src="/synai-icon.svg" alt="SynAI" style="width: 64px; height: 64px; margin: 0 auto 20px;" />
+              <h3 class="card-title">SynAI</h3>
+              <p class="card-text">Deine persönliche Intelligenz. Lernfähig, lokal und kollektiv austauschbar — nur mit deinem Einverständnis.</p>
+            </article>
+            <article class="card reveal" style="text-align: center;">
+              <img src="/xs-labs-icon.svg" alt="xSyna Labs" style="width: 64px; height: 64px; margin: 0 auto 20px;" />
+              <h3 class="card-title">xSyna Labs</h3>
+              <p class="card-text">Das Forschungslabor für experimentelle Hardware, Bridges und zukünftige Intelligenzprodukte.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="ecosystem" class="section">
         <div class="container">
           <div class="section-header reveal">
             <h2 class="heading-section">Das <span class="text-gradient">xSyna Ökosystem</span></h2>
@@ -103,7 +121,6 @@
               Von der Hardware bis zur persönlichen Intelligenz — jedes Produkt ist ein Baustein einer neuen, naturgegebenen KI-Generation.
             </p>
           </div>
-
           <div class="features-grid">
             <article class="card reveal">
               <div class="icon-box">
@@ -112,7 +129,6 @@
               <h3 class="card-title">SynAI</h3>
               <p class="card-text">Deine persönliche Intelligenz. Lernfähig, lokal, kollektiv austauschbar — nur mit deinem Einverständnis.</p>
             </article>
-
             <article class="card reveal">
               <div class="icon-box icon-box-amber">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6"/><path d="m4.22 4.22 4.24 4.24m6.92 6.92 4.24 4.24M1 12h6m6 0h6"/><path d="m4.22 19.78 4.24-4.24m6.92-6.92 4.24-4.24"/></svg>
@@ -120,7 +136,6 @@
               <h3 class="card-title">xSyn Chip</h3>
               <p class="card-text">Ein neuromorpher Chip, der elektronische Spikes statt Zahlen verrechnet — effizient und biologisch inspiriert.</p>
             </article>
-
             <article class="card reveal">
               <div class="icon-box">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v12"/><path d="M3 16h18a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2Z"/></svg>
@@ -132,16 +147,15 @@
         </div>
       </section>
 
-      <section id="news" class="section">
+      <section id="news" class="section" style="background: var(--bg-elevated);">
         <div class="container">
           <div class="flex items-center justify-between" style="margin-bottom: 56px;">
             <div class="section-header reveal" style="margin-bottom: 0;">
               <h2 class="heading-section">Neuigkeiten</h2>
               <p class="text-secondary" style="font-size: 1.05rem;">Produktupdates, Meilensteine und Stellenanzeigen.</p>
             </div>
-            <a href="/internal-services" class="btn btn-secondary btn-sm hidden-mobile" style="align-self: flex-end;">Neuigkeit verwalten</a>
+            <a href="/internal-services" class="btn btn-secondary btn-sm" style="align-self: flex-end;">Neuigkeit verwalten</a>
           </div>
-
           <div class="news-grid">
             <article class="card card-sm reveal">
               <span class="tag tag-cyan">Update</span>
@@ -162,7 +176,7 @@
         </div>
       </section>
 
-      <section id="jobs" class="section text-center" style="background: var(--bg-elevated);">
+      <section id="jobs" class="section text-center">
         <div class="container">
           <div class="section-header-center reveal">
             <h2 class="heading-section">Werde Teil des <span class="text-gradient">Synapses</span></h2>
@@ -186,7 +200,7 @@
                 <defs>
                   <linearGradient id="logoGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stop-color="#22D3EE" />
-                    <stop offset="100%" stop-color="#FBF924" />
+                    <stop offset="100%" stop-color="#FBBF24" />
                   </linearGradient>
                 </defs>
                 <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad2)" stroke-width="8" stroke-linecap="round" fill="none" />
