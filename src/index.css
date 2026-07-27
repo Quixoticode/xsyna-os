@@ -1,9 +1,44 @@
-/* DO NOT CHANGE */
 @import "tailwindcss";
 @import "tw-animate-css";
+
 @custom-variant dark (&:is(.dark *));
 
-/* DO NOT CHANGE */
+/* --- xSyna Neuromorphic Liquid Tokens --- */
+:root {
+  --cortex: #030508;
+  --cortex-light: #0b1016;
+  --cortex-elevated: #121820;
+  --cyan-400: #33ffff;
+  --cyan-500: #00f0ff;
+  --cyan-600: #00c2cc;
+  --amber-400: #ffc833;
+  --amber-500: #ffb300;
+  --amber-600: #cc8f00;
+
+  --radius: 0.625rem;
+  --background: var(--cortex);
+  --foreground: #ffffff;
+  --card: rgba(15, 20, 25, 0.4);
+  --card-foreground: #ffffff;
+  --popover: #0b1016;
+  --popover-foreground: #ffffff;
+  --primary: var(--cyan-500);
+  --primary-foreground: var(--cortex);
+  --secondary: var(--amber-500);
+  --secondary-foreground: var(--cortex);
+  --muted: rgba(255, 255, 255, 0.08);
+  --muted-foreground: rgba(255, 255, 255, 0.6);
+  --accent: rgba(0, 240, 255, 0.1);
+  --accent-foreground: #ffffff;
+  --destructive: #ff4d4d;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: var(--cyan-500);
+
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -27,100 +62,226 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-cortex: var(--cortex);
+  --color-cortex-light: var(--cortex-light);
+  --color-cortex-elevated: var(--cortex-elevated);
+  --color-cyan-400: var(--cyan-400);
+  --color-cyan-500: var(--cyan-500);
+  --color-cyan-600: var(--cyan-600);
+  --color-amber-400: var(--amber-400);
+  --color-amber-500: var(--amber-500);
+  --color-amber-600: var(--amber-600);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-/* CHANGE VALUES FOR THEME */
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+/* --- Global --- */
+* {
+  border-color: var(--border);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+html {
+  scroll-behavior: smooth;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-  button:not([disabled]),
-  [role="button"]:not([disabled]) {
-    cursor: pointer;
-  }
+body {
+  background-color: var(--cortex);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Fonts */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/plusjakartasans/v8/LDIoa08QNE2n0CICx1VgVNNaI4UeifMS2Iij.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2flifpCrjPVh8gQd0vN-4gU0gR2jDnRjdA.woff2") format("woff2");
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* --- Liquid Card --- */
+.liquid-card {
+  background: rgba(15, 20, 25, 0.4);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 24px;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s ease,
+    border-color 0.4s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.liquid-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.06), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.liquid-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0, 240, 255, 0.3);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 0 40px rgba(0, 240, 255, 0.05);
+}
+
+.liquid-card:hover::before {
+  opacity: 1;
+}
+
+/* --- Bio Button --- */
+.btn-bio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.75rem;
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(0, 240, 255, 0.5);
+  border-radius: 9999px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  z-index: 1;
+}
+
+.btn-bio::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+  z-index: -1;
+}
+
+.btn-bio:hover::before {
+  left: 100%;
+}
+
+.btn-bio:hover,
+.btn-bio.active {
+  background: rgba(0, 240, 255, 0.15);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+  border-color: var(--cyan-500);
+}
+
+.btn-bio-secondary {
+  border-color: rgba(255, 179, 0, 0.5);
+}
+
+.btn-bio-secondary::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 179, 0, 0.2), transparent);
+}
+
+.btn-bio-secondary:hover,
+.btn-bio-secondary.active {
+  background: rgba(255, 179, 0, 0.15);
+  box-shadow: 0 0 20px rgba(255, 179, 0, 0.2);
+  border-color: var(--amber-500);
+}
+
+/* --- Text Gradient --- */
+.text-liquid {
+  background: linear-gradient(135deg, var(--cyan-500), var(--amber-500));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  padding-bottom: 0.1em;
+}
+
+/* --- Scroll Reveal --- */
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 1s cubic-bezier(0.16, 1, 0.3, 1), transform 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* --- Neon Glow Utilities --- */
+.glow-cyan {
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.25);
+}
+
+.glow-amber {
+  box-shadow: 0 0 24px rgba(255, 179, 0, 0.25);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 16px rgba(0, 240, 255, 0.5);
+}
+
+/* --- Navigation --- */
+.nav-blur {
+  background: rgba(3, 5, 8, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* --- Hero Background Canvas --- */
+#neural-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -10;
+  pointer-events: none;
+}
+
+/* --- Sections --- */
+.section-title {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.section-subtitle {
+  color: var(--muted-foreground);
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  line-height: 1.6;
+  max-width: 56ch;
+}
+
+/* --- Footer --- */
+.footer-link {
+  color: var(--muted-foreground);
+  transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+  color: var(--cyan-500);
 }

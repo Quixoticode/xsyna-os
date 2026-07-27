@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>xSyna Docs — Was ist xSyna?</title>
+    <meta name="description" content="Deutsche Dokumentation von xSyna: Biografie, Produkte, Lizenz." />
+    <link rel="icon" type="image/svg+xml" href="/xyna-logo.svg" />
+  </head>
+  <body class="antialiased">
+    <div id="neural-canvas" aria-hidden="true"></div>
+
+    <header class="fixed top-0 inset-x-0 z-50 nav-blur">
+      <nav class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-3 group" aria-label="xSyna Home">
+          <svg width="32" height="32" viewBox="0 0 100 100" class="group-hover:scale-110 transition-transform">
+            <defs>
+              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#00F0FF" />
+                <stop offset="100%" stop-color="#FFB300" />
+              </linearGradient>
+            </defs>
+            <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
+            <path d="M 80 20 C 50 20, 50 80, 20 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
+            <circle cx="50" cy="50" r="10" fill="#030508" stroke="url(#logoGrad)" stroke-width="4" />
+            <circle cx="50" cy="50" r="4" fill="#FFFFFF" />
+          </svg>
+          <span class="text-xl font-bold tracking-tight">xSyna Docs</span>
+        </a>
+        <div class="hidden md:flex items-center gap-8 text-sm font-medium text-white/70">
+          <a href="/#ecosystem" class="hover:text-cyan-400 transition-colors">Ökosystem</a>
+          <a href="/" class="hover:text-cyan-400 transition-colors">Home</a>
+          <a href="/internal-services" class="hover:text-cyan-400 transition-colors">Account</a>
+        </div>
+      </nav>
+    </header>
+
+    <main class="pt-32 pb-24 px-6 relative z-10">
+      <div class="max-w-4xl mx-auto">
+        <div class="reveal mb-16">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-xs font-mono mb-4">
+            DOCUMENTATION
+          </div>
+          <h1 class="section-title mb-6">Was ist <span class="text-liquid">xSyna?</span></h1>
+          <p class="section-subtitle">
+            <strong>xSyna</strong> wurde von <em>Jake Ruck</em> 2026 ins Leben gerufen. Als eines von vielen Projekten hatte es anfangs einen experimentellen Zweck: <em>ist eine digitale Intelligenz auf günstiger Hardware möglich?</em>
+          </p>
+          <p class="section-subtitle mt-4">
+            Die Antwort ist ja. Nach dem gelungenen Experiment ging es um die Problemlösung: Man braucht neue Hardware, Software und Bridges. Alles sollte neu gemacht werden mit einem neuromorphen Ansatz.
+          </p>
+        </div>
+
+        <section class="mb-16 reveal">
+          <h2 class="text-2xl font-bold mb-4">Wo genau liegt das Problem?</h2>
+          <p class="text-white/70 leading-relaxed mb-4">
+            Das Problem liegt bereits an den gängigen Architekturen (x86, ARM, …), da diese mit <strong>Zahlen</strong> arbeiten: 0 und 1.
+          </p>
+          <p class="text-white/70 leading-relaxed">
+            Dies macht die Entwicklung einer Intelligenz schwerer: der <em>Energieverbrauch</em> steigt durch größere Zahlen, sie funktionieren nach <em>Wahrscheinlichkeitsprinzipien</em> und sind einfach <em>lokal nicht leistungsfähig genug</em>. Das heißt: neuer Chip, neue Software und neues Mindset — und die Natur gibt hier perfekte Beispiele.
+          </p>
+        </section>
+
+        <section class="mb-16 reveal">
+          <h2 class="text-2xl font-bold mb-4">Das Ziel</h2>
+          <p class="text-white/70 leading-relaxed mb-8">
+            Am „Ende" sollte ein großes Ökosystem verfügbar sein, mit folgenden Produkten:
+          </p>
+
+          <div class="grid md:grid-cols-2 gap-6 mb-8">
+            <article class="liquid-card p-6 reveal">
+              <h3 class="text-xl font-bold text-cyan-400 mb-2">SynAI</h3>
+              <p class="text-white/60 text-sm leading-relaxed">
+                <strong>Deine</strong> persönliche Intelligenz. Es lernt mit dir, arbeitet mit dir und tauscht keine Daten mit anderen aus, außer du wünscht es. Der Unterschied ist der kollektive Ansatz: alle Intelligenzen könnten sich mit Einverständnis der User verbinden und austauschen.
+              </p>
+            </article>
+            <article class="liquid-card p-6 reveal">
+              <h3 class="text-xl font-bold text-amber-400 mb-2">xSyn Chip</h3>
+              <p class="text-white/60 text-sm leading-relaxed">
+                Der <strong>neuromorphe Intelligenz-Chip</strong>. Statt Zahlen zu verrechnen, kopiert er das menschliche Gehirn mit Spikes — elektronische Impulse, die durch Neuronen intelligent werden. In der Testumgebung waren 128 Neuronen aktiv.
+              </p>
+            </article>
+            <article class="liquid-card p-6 reveal">
+              <h3 class="text-xl font-bold text-cyan-400 mb-2">Weights &amp; .syn-Dateien</h3>
+              <p class="text-white/60 text-sm leading-relaxed">
+                Wie in der Biologie lernen diese Neuronen immer mehr dazu. Die <strong>Weights</strong> werden in einer .syn-Datei gespeichert: der Kern deiner Intelligenz.
+              </p>
+            </article>
+            <article class="liquid-card p-6 reveal">
+              <h3 class="text-xl font-bold text-amber-400 mb-2">SynBridge</h3>
+              <p class="text-white/60 text-sm leading-relaxed">
+                Hier werden Bytes in Spikes übersetzt und andersrum: dadurch können auf handelsübliche Geräte vorerst alle Systeme getestet und verwendet werden.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="mb-16 reveal">
+          <h2 class="text-2xl font-bold mb-4">Warum ausgerechnet jetzt?</h2>
+          <p class="text-white/70 leading-relaxed mb-4">
+            Wir befinden uns im <strong>KI-Zeitalter</strong>: Konzerne wie OpenAI, Claude, Google, Apple und viele weitere nehmen nicht nur Strom und Ressourcen, sondern auch Daten. Was wäre, wenn wir nichts an die Cloud verkaufen, nicht manipuliert werden und gleichzeitig einen Assistenten in unserer Hand haben, mit dem wir gemeinsam lernen?
+          </p>
+          <p class="text-white/70 leading-relaxed">
+            Aktuelle Forschungen beschäftigen sich bereits mit der Entwicklung einer AGI oder ASI. Wenn es soweit kommt, liegt dem jeweiligen Unternehmen die „Welt zu Füßen" (poetisch ausgedrückt). Diese Technik kann und wird hilfreich sein. Aber jeder sollte es in der eigenen Hand haben.
+          </p>
+        </section>
+
+        <section class="mb-16 reveal">
+          <h2 class="text-2xl font-bold mb-4">Roadmap</h2>
+          <div class="space-y-4">
+            <div class="flex gap-4 items-start liquid-card p-4">
+              <div class="w-2 h-2 mt-2 rounded-full bg-cyan-400 shrink-0"></div>
+              <div>
+                <h4 class="font-bold">Ende 2026</h4>
+                <p class="text-white/60 text-sm">Erster Prototyp des xSyn Chips und der SynAI-Testumgebung.</p>
+              </div>
+            </div>
+            <div class="flex gap-4 items-start liquid-card p-4">
+              <div class="w-2 h-2 mt-2 rounded-full bg-amber-400 shrink-0"></div>
+              <div>
+                <h4 class="font-bold">2027</h4>
+                <p class="text-white/60 text-sm">Erste Verbreitung und Nutzung des xSyna Ökosystems.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="license" class="mb-16 reveal">
+          <h2 class="text-2xl font-bold mb-4">Lizenz</h2>
+          <div class="liquid-card p-6 text-sm text-white/70 leading-relaxed font-mono whitespace-pre-wrap">
+COPYRIGHT NOTICE &amp; PROPRIETARY LICENSE / URHEBERRECHTSHINWEIS &amp; PROPRIETÄRE LIZENZ
+
+Copyright (c) 2026 Jake Ruck
+Project / Projekt: xSyna
+Contact / Kontakt: info@xsyna.de
+
+ENGLISH VERSION
+All rights reserved. This repository and all files contained herein (including but not limited to source code, conceptual designs, the Design Language System (SynDLS), graphics, architecture designs, and documentation) are the exclusive intellectual property of Jake Ruck (the "Author").
+
+1. No License / No Usage: No license is granted to any person to use, compile, run, modify, distribute, or integrate this software, code, or design concepts into other projects without the prior express written consent of the Author.
+2. No Reproduction: Copying, cloning, downloading, or redistributing the contents of this repository is strictly prohibited.
+3. No Commercial Use: Any commercial utilization of the ideas, designs, or code described herein is strictly forbidden.
+4. Governing Law: This license and any disputes arising out of or in connection with it shall be governed by and construed in accordance with the laws of the Federal Republic of Germany.
+
+DEUTSCHE VERSION (Rechtlich bindend für den deutschen Raum)
+Alle Rechte vorbehalten. Dieses Repository und alle darin enthaltenen Dateien (insbesondere Quellcode, konzeptionelle Entwürfe, das Design Language System (SynDLS), Grafiken, Architekturentwürfe und Dokumentation) sind das ausschließliche geistige Eigentum und urheberrechtlich geschützte Werke von Jake Ruck (Urheber).
+
+1. Keine Einräumung von Nutzungsrechten: Ohne die vorherige ausdrückliche und schriftliche Zustimmung des Urhebers werden keinerlei Nutzungsrechte (§ 31 UrhG) eingeräumt. Die Nutzung, das Kompilieren, Ausführen, Verändern oder Integrieren in andere Projekte ist untersagt.
+2. Vervielfältigungs- und Verbreitungsverbot: Das Kopieren, Klonen, Herunterladen sowie die Weitergabe an Dritte sind strengstens untersagt.
+3. Ausschluss kommerzieller Nutzung: Jede kommerzielle Verwertung der hier beschriebenen Ideen, Designs oder Codes ist ausgeschlossen.
+4. Anwendbares Recht und Gerichtsstand: Es gilt ausschließlich das Recht der Bundesrepublik Deutschland. Gerichtsstand für alle Streitigkeiten ist, soweit zulässig, der Wohnsitz des Urhebers.
+          </div>
+        </section>
+
+        <section id="contact" class="reveal">
+          <h2 class="text-2xl font-bold mb-4">Kontakt</h2>
+          <p class="text-white/70 mb-4">
+            Fragen, Kooperationen oder Feedback? Schreib uns an <a href="mailto:info@xsyna.de" class="text-cyan-400 hover:underline">info@xsyna.de</a>.
+          </p>
+          <a href="/" class="btn-bio">Zurück zur Startseite</a>
+        </section>
+      </div>
+    </main>
+
+    <footer class="border-t border-white/10 py-12 px-6 relative z-10">
+      <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-white/50">
+        <p>&copy; 2026 Jake Ruck — xSyna. Alle Rechte vorbehalten.</p>
+        <a href="/" class="hover:text-cyan-400 transition-colors">xSyna Home</a>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/docs.js"></script>
+  </body>
+</html>
