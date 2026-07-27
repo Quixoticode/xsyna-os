@@ -6,81 +6,89 @@
     <title>xSyna Internal Services</title>
     <link rel="icon" type="image/svg+xml" href="/xyna-logo.svg" />
   </head>
-  <body class="antialiased">
-    <div id="neural-canvas" aria-hidden="true"></div>
+  <body>
+    <div id="neural-canvas"></div>
 
-    <div id="maintenance-screen" class="fixed inset-0 z-[100] hidden flex-col items-center justify-center text-center p-6" style="background:#0a0a0f;">
-      <div class="w-14 h-14 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin mb-6"></div>
-      <h1 class="text-3xl font-bold mb-2">Wartungsmodus</h1>
-      <p id="maintenance-text" class="text-white/60 max-w-md mb-6">Wir arbeiten an xSyna. Bitte hab einen Moment Geduld.</p>
-      <div class="w-full max-w-md h-2 bg-white/10 rounded-full overflow-hidden mb-4">
-        <div id="maintenance-progress" class="h-full bg-gradient-to-r from-cyan-500 to-amber-500 transition-all" style="width:0%"></div>
+    <div id="maintenance-screen" class="hidden" style="position: fixed; inset: 0; z-index: 100; background: var(--bg); flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;">
+      <div style="width: 56px; height: 56px; border: 2px solid rgba(34,211,238,0.2); border-top-color: var(--cyan); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 24px;"></div>
+      <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">Wartungsmodus</h1>
+      <p id="maintenance-text" style="color: var(--text-secondary); max-width: 480px; margin-bottom: 24px;">Wir arbeiten an xSyna. Bitte hab einen Moment Geduld.</p>
+      <div style="width: 100%; max-width: 480px; height: 8px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden; margin-bottom: 16px;">
+        <div id="maintenance-progress" style="height: 100%; background: linear-gradient(135deg, var(--cyan), var(--amber)); width: 0%; transition: width 0.3s;"></div>
       </div>
-      <div id="maintenance-status" class="text-sm font-mono text-cyan-400">System wird aktualisiert...</div>
+      <div id="maintenance-status" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--cyan);">System wird aktualisiert...</div>
     </div>
 
-    <div id="app" class="hidden min-h-screen flex">
-      <aside class="w-64 border-r border-white/10 bg-[#0a0a0f]/90 backdrop-blur flex flex-col">
-        <div class="p-5 border-b border-white/10 flex items-center gap-2.5">
-          <svg width="24" height="24" viewBox="0 0 100 100">
-            <defs>
-              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#00D4F0" />
-                <stop offset="100%" stop-color="#FFAA33" />
-              </linearGradient>
-            </defs>
-            <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
-            <path d="M 80 20 C 50 20, 50 80, 20 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
-            <circle cx="50" cy="50" r="10" fill="#0A0A0F" stroke="url(#logoGrad)" stroke-width="4" />
-            <circle cx="50" cy="50" r="4" fill="#FFFFFF" />
-          </svg>
-          <span class="text-sm font-bold">xSyna</span>
-        </div>
-        <nav id="sidebar-nav" class="flex-1 p-3 space-y-1 overflow-y-auto">
-          <!-- Sidebar items injected by JS -->
-        </nav>
-        <div class="p-4 border-t border-white/10">
-          <div class="text-xs text-white/40 mb-2 font-mono" id="user-email">guest@xsyna.de</div>
-          <button id="logout-btn" class="btn-bio w-full text-sm justify-center py-2">Abmelden</button>
-        </div>
-      </aside>
-
-      <div class="flex-1 flex flex-col min-w-0">
-        <header class="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#0a0a0f]/70 backdrop-blur">
-          <h2 id="page-title" class="text-base font-bold">Dashboard</h2>
-          <span id="role-badge" class="text-xs px-2 py-1 rounded-md border border-cyan-500/20 text-cyan-400 font-mono bg-cyan-500/10">USER</span>
-        </header>
-        <main id="page-content" class="flex-1 p-6 overflow-auto">
-          <!-- Dynamic page content -->
-        </main>
-      </div>
-    </div>
-
-    <div id="auth-view" class="min-h-screen flex items-center justify-center px-6 relative z-10">
-      <div class="w-full max-w-md">
-        <div class="liquid-card p-8">
-          <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold mb-1">xSyna Account</h1>
-            <p class="text-white/60 text-sm">Melde dich an, um auf Produkte, Support und dein Panel zuzugreifen.</p>
+    <div id="app" class="hidden" style="display: none; min-height: 100vh;">
+      <div class="dashboard">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <svg width="24" height="24" viewBox="0 0 100 100">
+              <defs>
+                <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#22D3EE" />
+                  <stop offset="100%" stop-color="#FBF924" />
+                </linearGradient>
+              </defs>
+              <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
+              <path d="M 80 20 C 50 20, 50 80, 20 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
+              <circle cx="50" cy="50" r="10" fill="#0B1120" stroke="url(#logoGrad)" stroke-width="4" />
+              <circle cx="50" cy="50" r="4" fill="#FFFFFF" />
+            </svg>
+            <span style="font-weight: 700;">xSyna</span>
           </div>
-          <form id="login-form" class="space-y-4">
-            <div>
-              <label class="block text-xs font-medium text-white/80 mb-1.5">E-Mail</label>
-              <input type="email" id="email" required class="xs-input" placeholder="du@xsyna.de" />
+          <nav id="sidebar-nav" class="sidebar-nav"></nav>
+          <div class="sidebar-footer">
+            <div id="user-email" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">guest@xsyna.de</div>
+            <button id="logout-btn" class="btn btn-primary btn-sm" style="width: 100%;">Abmelden</button>
+          </div>
+        </aside>
+
+        <div class="main">
+          <header class="main-header">
+            <h2 id="page-title" style="font-size: 1rem; font-weight: 700;">Dashboard</h2>
+            <span id="role-badge" class="role-badge">USER</span>
+          </header>
+          <main id="page-content" class="main-content"></main>
+        </div>
+      </div>
+    </div>
+
+    <div id="auth-view" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;">
+      <div style="width: 100%; max-width: 420px;">
+        <div class="card" style="padding: 40px;">
+          <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="font-size: 1.75rem; font-weight: 700; margin-bottom: 8px;">xSyna Account</h1>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">Melde dich an, um auf Produkte, Support und dein Panel zuzugreifen.</p>
+          </div>
+          <form id="login-form" class="form-group">
+            <div class="form-group">
+              <label class="form-label">E-Mail</label>
+              <input type="email" id="email" class="input" placeholder="du@xsyna.de" required />
             </div>
-            <button type="submit" id="login-button" class="btn-bio w-full justify-center">Magic-Link senden</button>
-            <p class="text-xs text-white/40 text-center">Wir senden dir einen einmaligen Login-Link.</p>
+            <button type="submit" id="login-button" class="btn btn-primary" style="width: 100%;">Magic-Link senden</button>
           </form>
-          <div class="relative my-5">
-            <div class="absolute inset-0 flex items-center"><span class="w-full border-t border-white/10"></span></div>
-            <div class="relative flex justify-center text-xs"><span class="bg-[#0a0a0f] px-2 text-white/40">oder</span></div>
+          <div style="position: relative; margin: 24px 0; text-align: center;">
+            <div style="position: absolute; inset: 0; display: flex; align-items: center;"><span style="width: 100%; border-top: 1px solid var(--border);"></span></div>
+            <span style="position: relative; background: var(--bg-card); padding: 0 12px; font-size: 0.75rem; color: var(--text-muted);">oder</span>
           </div>
-          <button id="passkey-btn" type="button" class="btn-bio btn-bio-secondary w-full justify-center opacity-60" disabled>Passkey (Phase 2)</button>
-          <div id="auth-message" class="mt-4 text-sm text-center hidden"></div>
+          <button id="passkey-btn" type="button" class="btn btn-secondary" style="width: 100%; opacity: 0.6;" disabled>Passkey (Phase 2)</button>
+          <div id="auth-message" class="hidden" style="margin-top: 16px; text-align: center; font-size: 0.85rem;"></div>
         </div>
       </div>
     </div>
 
     <script type="module" src="/src/internal.js"></script>
+    <style>
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      .hidden { display: none !important; }
+      #app { display: flex; }
+      @media (max-width: 768px) {
+        .dashboard { flex-direction: column; }
+        .sidebar { width: 100%; }
+      }
+    </style>
   </body>
 </html>
