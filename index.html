@@ -13,105 +13,106 @@
     <header class="fixed top-0 inset-x-0 z-50 nav-blur">
       <nav class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <a href="/" class="flex items-center gap-2.5 group" aria-label="xSyna Home">
-          <svg width="28" height="28" viewBox="0 0 100 100" class="group-hover:scale-105 transition-transform">
+          <svg width="26" height="26" viewBox="0 0 100 100" class="group-hover:scale-105 transition-transform">
             <defs>
               <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#00F0FF" />
-                <stop offset="100%" stop-color="#FFB300" />
+                <stop offset="0%" stop-color="#00D4F0" />
+                <stop offset="100%" stop-color="#FFAA33" />
               </linearGradient>
             </defs>
             <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
             <path d="M 80 20 C 50 20, 50 80, 20 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
-            <circle cx="50" cy="50" r="10" fill="#030508" stroke="url(#logoGrad)" stroke-width="4" />
+            <circle cx="50" cy="50" r="10" fill="#0A0A0F" stroke="url(#logoGrad)" stroke-width="4" />
             <circle cx="50" cy="50" r="4" fill="#FFFFFF" />
           </svg>
-          <span class="text-lg font-bold tracking-tight">xSyna</span>
+          <span class="text-base font-bold tracking-tight">xSyna</span>
         </a>
 
-        <div class="hidden md:flex items-center gap-6 text-sm font-medium text-white/70">
+        <div class="hidden md:flex items-center gap-8 text-sm font-medium text-white/70">
           <a href="#ecosystem" class="hover:text-white transition-colors">Ökosystem</a>
           <a href="#news" class="hover:text-white transition-colors">Neuigkeiten</a>
           <a href="#jobs" class="hover:text-white transition-colors">Jobs</a>
           <a href="/docs" class="hover:text-white transition-colors">Docs</a>
         </div>
 
-        <a href="/internal-services" class="btn-bio text-sm py-2 px-5">Account</a>
+        <a href="/internal-services" class="btn-bio text-sm py-2 px-4">Account</a>
       </nav>
     </header>
 
     <main>
-      <section class="relative min-h-[90vh] flex items-center px-6 pt-20 pb-16">
-        <div class="max-w-6xl mx-auto w-full grid lg:grid-cols-2 gap-12 items-center">
+      <section class="relative min-h-[85vh] flex items-center px-6 pt-24 pb-16">
+        <div class="max-w-6xl mx-auto w-full grid lg:grid-cols-2 gap-16 items-center">
           <div class="reveal">
-            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-xs font-mono mb-5">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/10 text-cyan-400 text-xs font-mono mb-6">
               <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
               Synaptic Architecture v0.1
             </div>
-            <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.1] tracking-tight mb-5">
+            <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight mb-6">
               Digitale Intelligenz, <br />
               <span class="text-liquid">geboren aus der Natur.</span>
             </h1>
-            <p class="text-base md:text-lg text-white/65 leading-relaxed max-w-xl mb-8">
-              xSyna baut ein Ökosystem neuronaler, lokaler KI-Systeme. Wir verabschieden uns von starren Architekturen und erschaffen Technologie, die mit dir lernt — ohne deine Daten zu verkaufen.
+            <p class="text-lg text-white/65 leading-relaxed max-w-xl mb-8">
+              xSyna baut ein Ökosystem neuronaler, lokaler KI-Systeme. Wir verabschieden uns von starren Architekturen und erschaffen Technologie, die mit dir lernt.
             </p>
-            <div class="flex flex-wrap gap-3 mb-10">
+            <div class="flex flex-wrap gap-3 mb-12">
               <a href="#ecosystem" class="btn-bio">Ökosystem erkunden</a>
               <a href="/docs" class="btn-bio btn-bio-secondary">Dokumentation</a>
             </div>
-            <div class="flex gap-8">
+            <div class="flex gap-10">
               <div>
-                <div class="text-2xl font-bold text-white">128</div>
-                <div class="text-xs text-white/50 font-mono">Test-Neuronen</div>
+                <div class="text-2xl font-bold">128</div>
+                <div class="text-xs text-white/50 font-mono mt-1">Test-Neuronen</div>
               </div>
               <div>
-                <div class="text-2xl font-bold text-white">0</div>
-                <div class="text-xs text-white/50 font-mono">Cloud-Abhängig</div>
+                <div class="text-2xl font-bold">0</div>
+                <div class="text-xs text-white/50 font-mono mt-1">Cloud-Abhängig</div>
               </div>
               <div>
-                <div class="text-2xl font-bold text-white">∞</div>
-                <div class="text-xs text-white/50 font-mono">Lernpotenzial</div>
+                <div class="text-2xl font-bold">∞</div>
+                <div class="text-xs text-white/50 font-mono mt-1">Lernpotenzial</div>
               </div>
             </div>
           </div>
 
-          <div class="hidden lg:flex justify-end reveal">
-            <div class="liquid-card p-6 w-full max-w-md rotate-1 hover:rotate-0 transition-transform duration-500">
-              <div class="flex items-center gap-2 mb-4">
-                <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(0,240,255,0.6)]"></div>
+          <div class="hidden lg:block reveal">
+            <div class="liquid-card p-7 relative overflow-hidden">
+              <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-amber-500"></div>
+              <div class="flex items-center gap-2 mb-5">
+                <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(0,212,240,0.5)]"></div>
                 <span class="font-mono text-xs text-white/60">SynAI Core</span>
               </div>
-              <div class="font-mono text-sm text-cyan-400/90 leading-relaxed space-y-2">
+              <div class="font-mono text-sm text-cyan-400/90 leading-relaxed space-y-2 mb-6">
                 <p>&gt; init_spike_network()</p>
                 <p>&gt; loading_weights.syn...</p>
                 <p class="text-amber-400">&gt; local_learning = true</p>
                 <p>&gt; SynAI ready. Waiting for input.</p>
               </div>
-              <div class="mt-5 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div class="h-full w-3/4 bg-gradient-to-r from-cyan-500 to-amber-500 animate-pulse rounded-full"></div>
+              <div class="h-1.5 bg-white/10 rounded-full overflow-hidden mb-5">
+                <div class="h-full w-3/4 bg-gradient-to-r from-cyan-500 to-amber-500 rounded-full animate-pulse"></div>
               </div>
-              <div class="mt-5 grid grid-cols-3 gap-3">
-                <div class="h-16 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-xs font-mono text-white/40">spike</div>
-                <div class="h-16 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-xs font-mono text-white/40">weight</div>
-                <div class="h-16 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-xs font-mono text-white/40">learn</div>
+              <div class="grid grid-cols-3 gap-3">
+                <div class="h-16 rounded-lg bg-white/[0.03] border border-white/10 flex items-center justify-center text-xs font-mono text-white/40">spike</div>
+                <div class="h-16 rounded-lg bg-white/[0.03] border border-white/10 flex items-center justify-center text-xs font-mono text-white/40">weight</div>
+                <div class="h-16 rounded-lg bg-white/[0.03] border border-white/10 flex items-center justify-center text-xs font-mono text-white/40">learn</div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="ecosystem" class="py-20 px-6 relative z-10">
+      <section id="ecosystem" class="py-24 px-6 relative z-10">
         <div class="max-w-6xl mx-auto">
-          <div class="max-w-2xl mb-12 reveal">
-            <h2 class="section-title mb-3">Das <span class="text-liquid">xSyna Ökosystem</span></h2>
+          <div class="max-w-2xl mb-14 reveal">
+            <h2 class="section-title mb-4">Das <span class="text-liquid">xSyna Ökosystem</span></h2>
             <p class="section-subtitle">
               Von der Hardware bis zur persönlichen Intelligenz — jedes Produkt ist ein Baustein einer neuen, naturgegebenen KI-Generation.
             </p>
           </div>
 
-          <div class="grid md:grid-cols-3 gap-5">
-            <article class="liquid-card p-6 reveal">
-              <div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center mb-4 text-cyan-400">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M12 12 4.93 4.93a10 10 0 0 1 7.07-2.93V12Z"/></svg>
+          <div class="grid md:grid-cols-3 gap-6">
+            <article class="liquid-card p-7 reveal">
+              <div class="w-11 h-11 rounded-lg bg-cyan-500/10 flex items-center justify-center mb-5 text-cyan-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M12 12 4.93 4.93a10 10 0 0 1 7.07-2.93V12Z"/></svg>
               </div>
               <h3 class="text-lg font-bold mb-2">SynAI</h3>
               <p class="text-white/60 text-sm leading-relaxed">
@@ -119,9 +120,9 @@
               </p>
             </article>
 
-            <article class="liquid-card p-6 reveal">
-              <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4 text-amber-400">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6"/><path d="m4.22 4.22 4.24 4.24m6.92 6.92 4.24 4.24M1 12h6m6 0h6"/><path d="m4.22 19.78 4.24-4.24m6.92-6.92 4.24-4.24"/></svg>
+            <article class="liquid-card p-7 reveal">
+              <div class="w-11 h-11 rounded-lg bg-amber-500/10 flex items-center justify-center mb-5 text-amber-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6"/><path d="m4.22 4.22 4.24 4.24m6.92 6.92 4.24 4.24M1 12h6m6 0h6"/><path d="m4.22 19.78 4.24-4.24m6.92-6.92 4.24-4.24"/></svg>
               </div>
               <h3 class="text-lg font-bold mb-2">xSyn Chip</h3>
               <p class="text-white/60 text-sm leading-relaxed">
@@ -129,9 +130,9 @@
               </p>
             </article>
 
-            <article class="liquid-card p-6 reveal">
-              <div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center mb-4 text-cyan-400">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v12"/><path d="M3 16h18a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2Z"/></svg>
+            <article class="liquid-card p-7 reveal">
+              <div class="w-11 h-11 rounded-lg bg-cyan-500/10 flex items-center justify-center mb-5 text-cyan-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v12"/><path d="M3 16h18a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2Z"/></svg>
               </div>
               <h3 class="text-lg font-bold mb-2">SynBridge</h3>
               <p class="text-white/60 text-sm leading-relaxed">
@@ -142,39 +143,39 @@
         </div>
       </section>
 
-      <section id="news" class="py-20 px-6 relative z-10">
+      <section id="news" class="py-24 px-6 relative z-10">
         <div class="max-w-6xl mx-auto">
-          <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4 reveal">
+          <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4 reveal">
             <div>
-              <h2 class="section-title mb-2">Neuigkeiten</h2>
+              <h2 class="section-title mb-3">Neuigkeiten</h2>
               <p class="section-subtitle">Produktupdates, Meilensteine und Stellenanzeigen aus der xSyna-Welt.</p>
             </div>
-            <a href="/internal-services" class="btn-bio text-sm self-start">Neuigkeit verwalten</a>
+            <a href="/internal-services" class="btn-bio btn-bio-secondary text-sm self-start">Neuigkeit verwalten</a>
           </div>
           <div id="news-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            <article class="liquid-card p-5 reveal">
-              <span class="text-xs font-mono text-cyan-400">UPDATE</span>
-              <h3 class="text-base font-bold mt-2 mb-1">xSyna.com Phase 1 live</h3>
-              <p class="text-white/60 text-sm">Das neue Design-System und die erste öffentliche Dokumentation sind online.</p>
+            <article class="liquid-card p-6 reveal">
+              <span class="badge badge-cyan mb-3">Update</span>
+              <h3 class="text-base font-bold mb-2">xSyna.com Phase 1 live</h3>
+              <p class="text-white/60 text-sm leading-relaxed">Das neue Design-System und die erste öffentliche Dokumentation sind online.</p>
             </article>
-            <article class="liquid-card p-5 reveal">
-              <span class="text-xs font-mono text-amber-400">JOB</span>
-              <h3 class="text-base font-bold mt-2 mb-1">Hardware-Entwickler (m/w/d)</h3>
-              <p class="text-white/60 text-sm">Du entwickelst neuromorphe Chips und testest Prototypen. Bewirb dich im Account-Panel.</p>
+            <article class="liquid-card p-6 reveal">
+              <span class="badge badge-amber mb-3">Job</span>
+              <h3 class="text-base font-bold mb-2">Hardware-Entwickler</h3>
+              <p class="text-white/60 text-sm leading-relaxed">Du entwickelst neuromorphe Chips und testest Prototypen. Bewirb dich im Account-Panel.</p>
             </article>
-            <article class="liquid-card p-5 reveal">
-              <span class="text-xs font-mono text-cyan-400">PRODUKT</span>
-              <h3 class="text-base font-bold mt-2 mb-1">SynAI Mini Experiment</h3>
-              <p class="text-white/60 text-sm">Eine erste lokale, browserbasierte SynAI-Demo ist in Entwicklung.</p>
+            <article class="liquid-card p-6 reveal">
+              <span class="badge badge-cyan mb-3">Produkt</span>
+              <h3 class="text-base font-bold mb-2">SynAI Mini Experiment</h3>
+              <p class="text-white/60 text-sm leading-relaxed">Eine erste lokale, browserbasierte SynAI-Demo ist in Entwicklung.</p>
             </article>
           </div>
         </div>
       </section>
 
-      <section id="jobs" class="py-20 px-6 relative z-10">
+      <section id="jobs" class="py-24 px-6 relative z-10">
         <div class="max-w-3xl mx-auto text-center reveal">
-          <h2 class="section-title mb-3">Werde Teil des <span class="text-liquid">Synapses</span></h2>
-          <p class="section-subtitle mx-auto mb-6">
+          <h2 class="section-title mb-4">Werde Teil des <span class="text-liquid">Synapses</span></h2>
+          <p class="section-subtitle mx-auto mb-8">
             Wir suchen Menschen, die nicht nur mitarbeiten, sondern mitdenken wollen. Gemeinsam bauen wir eine neue Art von Intelligenz.
           </p>
           <a href="/internal-services" class="btn-bio">Zum Bewerbungsportal</a>
@@ -182,39 +183,39 @@
       </section>
     </main>
 
-    <footer class="border-t border-white/10 py-10 px-6 relative z-10">
-      <div class="max-w-6xl mx-auto grid md:grid-cols-4 gap-8">
+    <footer class="border-t border-white/10 py-14 px-6 relative z-10">
+      <div class="max-w-6xl mx-auto grid md:grid-cols-4 gap-10">
         <div class="col-span-2">
-          <a href="/" class="flex items-center gap-2 mb-3">
+          <a href="/" class="flex items-center gap-2 mb-4">
             <svg width="22" height="22" viewBox="0 0 100 100">
               <defs>
                 <linearGradient id="logoGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#00F0FF" />
-                  <stop offset="100%" stop-color="#FFB300" />
+                  <stop offset="0%" stop-color="#00D4F0" />
+                  <stop offset="100%" stop-color="#FFAA33" />
                 </linearGradient>
               </defs>
               <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad2)" stroke-width="8" stroke-linecap="round" fill="none" />
               <path d="M 80 20 C 50 20, 50 80, 20 80" stroke="url(#logoGrad2)" stroke-width="8" stroke-linecap="round" fill="none" />
-              <circle cx="50" cy="50" r="10" fill="#030508" stroke="url(#logoGrad2)" stroke-width="4" />
+              <circle cx="50" cy="50" r="10" fill="#0A0A0F" stroke="url(#logoGrad2)" stroke-width="4" />
               <circle cx="50" cy="50" r="4" fill="#FFFFFF" />
             </svg>
-            <span class="text-base font-bold">xSyna</span>
+            <span class="text-sm font-bold">xSyna</span>
           </a>
           <p class="text-xs text-white/50 max-w-xs leading-relaxed">
-            Neuromorphic Liquid Design &copy; 2026 Jake Ruck. Alle Rechte vorbehalten.
+            Neuromorphic Intelligence &copy; 2026 Jake Ruck. Alle Rechte vorbehalten.
           </p>
         </div>
         <div>
-          <h4 class="text-xs font-bold mb-3 text-white/80 uppercase tracking-wider">Plattform</h4>
-          <ul class="space-y-2 text-sm text-white/50">
+          <h4 class="text-xs font-bold mb-4 text-white/90 uppercase tracking-wider">Plattform</h4>
+          <ul class="space-y-2.5 text-sm text-white/55">
             <li><a href="/docs" class="footer-link">Docs</a></li>
             <li><a href="/internal-services" class="footer-link">Account</a></li>
             <li><a href="#jobs" class="footer-link">Jobs</a></li>
           </ul>
         </div>
         <div>
-          <h4 class="text-xs font-bold mb-3 text-white/80 uppercase tracking-wider">Rechtliches</h4>
-          <ul class="space-y-2 text-sm text-white/50">
+          <h4 class="text-xs font-bold mb-4 text-white/90 uppercase tracking-wider">Rechtliches</h4>
+          <ul class="space-y-2.5 text-sm text-white/55">
             <li><a href="/docs#license" class="footer-link">Lizenz</a></li>
             <li><a href="/docs#contact" class="footer-link">Kontakt</a></li>
           </ul>

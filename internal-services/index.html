@@ -9,8 +9,8 @@
   <body class="antialiased">
     <div id="neural-canvas" aria-hidden="true"></div>
 
-    <div id="maintenance-screen" class="fixed inset-0 z-[100] hidden flex-col items-center justify-center text-center p-6" style="background:#030508;">
-      <div class="w-16 h-16 rounded-full border-2 border-cyan-500/30 border-t-cyan-400 animate-spin mb-6"></div>
+    <div id="maintenance-screen" class="fixed inset-0 z-[100] hidden flex-col items-center justify-center text-center p-6" style="background:#0a0a0f;">
+      <div class="w-14 h-14 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin mb-6"></div>
       <h1 class="text-3xl font-bold mb-2">Wartungsmodus</h1>
       <p id="maintenance-text" class="text-white/60 max-w-md mb-6">Wir arbeiten an xSyna. Bitte hab einen Moment Geduld.</p>
       <div class="w-full max-w-md h-2 bg-white/10 rounded-full overflow-hidden mb-4">
@@ -20,37 +20,35 @@
     </div>
 
     <div id="app" class="hidden min-h-screen flex">
-      <aside class="w-64 border-r border-white/10 bg-[#030508]/90 backdrop-blur flex flex-col">
+      <aside class="w-64 border-r border-white/10 bg-[#0a0a0f]/90 backdrop-blur flex flex-col">
         <div class="p-5 border-b border-white/10 flex items-center gap-2.5">
           <svg width="24" height="24" viewBox="0 0 100 100">
             <defs>
               <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#00F0FF" />
-                <stop offset="100%" stop-color="#FFB300" />
+                <stop offset="0%" stop-color="#00D4F0" />
+                <stop offset="100%" stop-color="#FFAA33" />
               </linearGradient>
             </defs>
             <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
             <path d="M 80 20 C 50 20, 50 80, 20 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
-            <circle cx="50" cy="50" r="10" fill="#030508" stroke="url(#logoGrad)" stroke-width="4" />
+            <circle cx="50" cy="50" r="10" fill="#0A0A0F" stroke="url(#logoGrad)" stroke-width="4" />
             <circle cx="50" cy="50" r="4" fill="#FFFFFF" />
           </svg>
-          <span class="font-bold">xSyna</span>
+          <span class="text-sm font-bold">xSyna</span>
         </div>
         <nav id="sidebar-nav" class="flex-1 p-3 space-y-1 overflow-y-auto">
           <!-- Sidebar items injected by JS -->
         </nav>
         <div class="p-4 border-t border-white/10">
           <div class="text-xs text-white/40 mb-2 font-mono" id="user-email">guest@xsyna.de</div>
-          <button id="logout-btn" class="btn-bio w-full text-sm justify-center">Abmelden</button>
+          <button id="logout-btn" class="btn-bio w-full text-sm justify-center py-2">Abmelden</button>
         </div>
       </aside>
 
       <div class="flex-1 flex flex-col min-w-0">
-        <header class="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#030508]/70 backdrop-blur">
-          <h2 id="page-title" class="text-lg font-bold">Dashboard</h2>
-          <div class="flex items-center gap-3">
-            <span id="role-badge" class="text-xs px-2 py-1 rounded-full border border-cyan-500/30 text-cyan-400 font-mono">USER</span>
-          </div>
+        <header class="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#0a0a0f]/70 backdrop-blur">
+          <h2 id="page-title" class="text-base font-bold">Dashboard</h2>
+          <span id="role-badge" class="text-xs px-2 py-1 rounded-md border border-cyan-500/20 text-cyan-400 font-mono bg-cyan-500/10">USER</span>
         </header>
         <main id="page-content" class="flex-1 p-6 overflow-auto">
           <!-- Dynamic page content -->
@@ -75,7 +73,7 @@
           </form>
           <div class="relative my-5">
             <div class="absolute inset-0 flex items-center"><span class="w-full border-t border-white/10"></span></div>
-            <div class="relative flex justify-center text-xs"><span class="bg-[#030508] px-2 text-white/40">oder</span></div>
+            <div class="relative flex justify-center text-xs"><span class="bg-[#0a0a0f] px-2 text-white/40">oder</span></div>
           </div>
           <button id="passkey-btn" type="button" class="btn-bio btn-bio-secondary w-full justify-center opacity-60" disabled>Passkey (Phase 2)</button>
           <div id="auth-message" class="mt-4 text-sm text-center hidden"></div>
