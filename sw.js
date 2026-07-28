@@ -1,5 +1,12 @@
-const CACHE_NAME = "xsyna-v1";
-const OFFLINE_URLS = ["/", "/index.html", "/docs", "/docs/index.html"];
+const CACHE_NAME = "xsyna-v2";
+const OFFLINE_URLS = [
+  "/",
+  "/index.html",
+  "/docs",
+  "/docs/index.html",
+  "/internal-services",
+  "/internal-services/index.html",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -26,6 +33,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
@@ -41,7 +50,13 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => {
-          return caches.match("/");
+          if (url.pathname.startsWith("/internal-services")) {
+            return caches.match("/internal-services/index.html");
+          }
+          if (url.pathname.startsWith("/docs")) {
+            return caches.match("/docs/index.html");
+          }
+          return caches.match("/index.html");
         });
     })
   );

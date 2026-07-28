@@ -1,4 +1,3 @@
-import { vlyPlugin } from "@vly-ai/integrations";
 import { defineConfig } from "vite";
 import { resolve } from "path";
 

@@ -2,13 +2,36 @@ import "./index.css";
 import { supabase } from "./js/supabase.js";
 import { initNeuralBackground } from "./js/neural-bg.js";
 import "./js/sw-register.js";
+import {
+  getProfile,
+  setUserRole,
+  listUsers,
+  getMaintenance,
+  setMaintenance,
+  getBetaRequests,
+  createBetaRequest,
+  updateBetaRequestStatus,
+  getTickets,
+  createTicket,
+  getCRMContacts,
+  createCRMContact,
+  getTimeEntries,
+  createTimeEntry,
+  getChatMessages,
+  createChatMessage,
+  getDocs,
+  saveDocs,
+  isAdmin,
+  isStaff,
+  syncQueue,
+} from "./js/supabase-db.js";
 
 initNeuralBackground("neural-canvas");
 
 const state = {
   user: null,
-  role: "user",
-  permissions: [],
+  profile: null,
+  maintenance: { enabled: false },
 };
 
 const pages = {
@@ -19,15 +42,16 @@ const pages = {
   account: { title: "Mein Account", icon: accountIcon, render: renderAccount },
   betareq: { title: "Beta-Zugang", icon: betaIcon, render: renderBetaRequest },
   support: { title: "Support", icon: supportIcon, render: renderSupport },
-  crm: { title: "CRM", icon: crmIcon, render: renderCRM },
+  crm: { title: "CRM", icon: crmIcon, render: renderCRM, requires: ["admin", "moderator"] },
   time: { title: "Zeiterfassung", icon: timeIcon, render: renderTimeTracking },
   chat: { title: "Chat", icon: chatIcon, render: renderChat },
-  docs: { title: "Docs", icon: docsIcon, render: renderDocsEditor },
+  docs: { title: "Docs", icon: docsIcon, render: renderDocsEditor, requires: ["admin", "moderator"] },
   game: { title: "xSyna Game", icon: gameIcon, render: renderGame },
   synai: { title: "Mini SynAI", icon: synaiIcon, render: renderMiniSynAI },
 };
 
 let currentPage = "dashboard";
+let timerInterval = null;
 
 function $(id) { return document.getElementById(id); }
 function storage(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } }
@@ -37,48 +61,45 @@ function showAuthMessage(text, type = "info") {
   const el = $("auth-message");
   if (!el) return;
   el.textContent = text;
-  el.className = "auth-message";
-  if (type === "error") el.style.color = "#f87171";
-  if (type === "success") el.style.color = "#22d3ee";
-  if (type === "info") el.style.color = "#94a3b8";
   el.style.display = "block";
+  el.style.color = type === "error" ? "#f87171" : type === "success" ? "#22d3ee" : "#94a3b8";
 }
 
 async function checkSession() {
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
     state.user = session.user;
-    await loadUserRole();
-    initApp();
+    await loadProfile();
+  } else {
+    $("auth-view").style.display = "flex";
+    $("app").style.display = "none";
   }
 }
 
-async function loadUserRole() {
-  const stored = storage("xsyna_users", []);
-  const found = stored.find((u) => u.email === state.user?.email);
-  if (found) {
-    state.role = found.role;
-    state.permissions = found.permissions || [];
-  } else {
-    state.role = "user";
-    state.permissions = [];
-  }
+async function loadProfile() {
+  const profile = await getProfile(state.user.id);
+  state.profile = profile || { role: "user", permissions: [] };
+  await initApp();
 }
 
 function hasPermission(perms) {
   if (!perms || perms.length === 0) return true;
-  if (state.role === "admin") return true;
-  return perms.includes(state.role) || perms.some((p) => state.permissions.includes(p));
+  if (state.profile?.role === "admin") return true;
+  return perms.includes(state.profile?.role) || perms.some((p) => state.profile?.permissions?.includes(p));
 }
 
-function initApp() {
+async function initApp() {
+  await syncQueue();
+  const maintenance = await getMaintenance();
+  state.maintenance = maintenance;
+
   $("auth-view").style.display = "none";
   $("app").style.display = "flex";
   $("user-email").textContent = state.user?.email || "guest@xsyna.de";
-  $("role-badge").textContent = state.role.toUpperCase();
+  $("role-badge").textContent = (state.profile?.role || "user").toUpperCase();
 
-  const maintenance = storage("xsyna_maintenance", { enabled: false });
-  if (maintenance.enabled) showMaintenance(maintenance);
+  if (maintenance?.enabled) showMaintenance(maintenance);
+  else $("maintenance-screen").style.display = "none";
 
   renderSidebar();
   navigate(currentPage);
@@ -104,7 +125,10 @@ function navigate(page) {
   if (pages[page]?.requires && !hasPermission(pages[page].requires)) page = "dashboard";
   currentPage = page;
   $("page-title").textContent = pages[page].title;
-  pages[page].render($("page-content"));
+  const content = $("page-content");
+  content.innerHTML = "";
+  clearInterval(timerInterval);
+  pages[page].render(content);
   renderSidebar();
 }
 
@@ -112,7 +136,7 @@ function renderDashboard(container) {
   container.innerHTML = `
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-bottom: 32px;">
       <div class="card card-sm"><div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">Account Status</div><div style="font-size: 1.5rem; font-weight: 700; color: var(--cyan);">Aktiv</div></div>
-      <div class="card card-sm"><div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">Rolle</div><div style="font-size: 1.5rem; font-weight: 700; color: var(--amber);">${state.role.toUpperCase()}</div></div>
+      <div class="card card-sm"><div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">Rolle</div><div style="font-size: 1.5rem; font-weight: 700; color: var(--amber);">${(state.profile?.role || "user").toUpperCase()}</div></div>
       <div class="card card-sm"><div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">Zeit heute</div><div style="font-size: 1.5rem; font-weight: 700;">${todayTime()}</div></div>
     </div>
     <div class="card">
@@ -133,39 +157,50 @@ function renderDashboard(container) {
 }
 
 function renderAdmin(container) {
-  if (!hasPermission(["admin"])) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const maintenance = storage("xsyna_maintenance", { enabled: false, title: "", text: "" });
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
   container.innerHTML = `
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
       <div class="card">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Wartungsmodus</h3>
         <form id="maintenance-form">
           <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: var(--text-secondary); font-size: 0.9rem;">
-            <input type="checkbox" id="maint-enabled" ${maintenance.enabled ? "checked" : ""} /> Wartungsmodus aktivieren
+            <input type="checkbox" id="maint-enabled" ${state.maintenance?.enabled ? "checked" : ""} /> Wartungsmodus aktivieren
           </label>
-          <input type="text" id="maint-title" class="input" placeholder="Überschrift" value="${maintenance.title || ""}" style="margin-bottom: 12px;" />
-          <textarea id="maint-text" class="input" rows="2" placeholder="Status-Text" style="margin-bottom: 16px;">${maintenance.text || ""}</textarea>
+          <input type="text" id="maint-title" class="input" placeholder="Überschrift" value="${state.maintenance?.title || ""}" style="margin-bottom: 12px;" />
+          <textarea id="maint-text" class="input" rows="2" placeholder="Status-Text" style="margin-bottom: 16px;">${state.maintenance?.status_text || ""}</textarea>
           <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
         </form>
       </div>
       <div class="card">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">System</h3>
         <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Verwaltung über das Admin-Panel.</p>
+        <button id="sync-queue" class="btn btn-secondary btn-sm" style="margin-bottom: 12px;">Offline-Queue synchronisieren</button>
         <button id="reset-data" class="btn btn-secondary btn-sm">Alle lokalen Daten löschen</button>
       </div>
     </div>
   `;
 
-  $("maintenance-form")?.addEventListener("submit", (e) => {
+  $("maintenance-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const config = {
       enabled: $("maint-enabled").checked,
       title: $("maint-title").value,
-      text: $("maint-text").value,
+      status_text: $("maint-text").value,
     };
-    setStorage("xsyna_maintenance", config);
-    showMaintenance(config);
-    alert("Wartungsmodus-Einstellungen gespeichert.");
+    const { data, error } = await setMaintenance(config);
+    if (error) {
+      showAuthMessage("Fehler: " + error.message, "error");
+      return;
+    }
+    state.maintenance = data || config;
+    if (state.maintenance?.enabled) showMaintenance(state.maintenance);
+    else $("maintenance-screen").style.display = "none";
+    showAuthMessage("Wartungsmodus-Einstellungen gespeichert.", "success");
+  });
+
+  $("sync-queue")?.addEventListener("click", async () => {
+    await syncQueue();
+    showAuthMessage("Offline-Queue synchronisiert.", "success");
   });
 
   $("reset-data")?.addEventListener("click", () => {
@@ -178,12 +213,8 @@ function renderAdmin(container) {
 
 function showMaintenance(config) {
   const screen = $("maintenance-screen");
-  if (!config.enabled) {
-    screen.style.display = "none";
-    return;
-  }
   screen.style.display = "flex";
-  $("maintenance-text").textContent = config.text || "Wir arbeiten an xSyna. Bitte hab einen Moment Geduld.";
+  $("maintenance-text").textContent = config.status_text || "Wir arbeiten an xSyna. Bitte hab einen Moment Geduld.";
   $("maintenance-status").textContent = config.title || "System wird aktualisiert...";
   let p = 0;
   const bar = $("maintenance-progress");
@@ -194,14 +225,15 @@ function showMaintenance(config) {
   }, 300);
 }
 
-function renderUsers(container) {
-  if (!hasPermission(["admin"])) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const users = storage("xsyna_users", []);
+async function renderUsers(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: users, error } = await listUsers();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
   container.innerHTML = `
     <div class="card" style="overflow: hidden;">
       <table class="table">
         <thead><tr><th>E-Mail</th><th>Rolle</th><th>Berechtigungen</th><th>Aktionen</th></tr></thead>
-        <tbody>${users.map(u => `
+        <tbody>${(users || []).map(u => `
           <tr>
             <td>${u.email}</td>
             <td>${u.role}</td>
@@ -213,33 +245,34 @@ function renderUsers(container) {
     </div>
   `;
   container.querySelectorAll(".edit-user").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const email = btn.dataset.email;
       const newRole = prompt("Neue Rolle (admin, moderator, beta, user):");
       if (!newRole) return;
-      const list = storage("xsyna_users", []);
-      const u = list.find((x) => x.email === email);
-      if (u) { u.role = newRole; setStorage("xsyna_users", list); renderUsers(container); }
+      const { error } = await setUserRole(email, newRole);
+      if (error) { alert("Fehler: " + error.message); return; }
+      renderUsers(container);
     });
   });
 }
 
-function renderBetaAdmin(container) {
-  if (!hasPermission(["admin", "moderator"])) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const requests = storage("xsyna_beta_requests", []);
+async function renderBetaAdmin(container) {
+  if (!isStaff(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: requests, error } = await getBetaRequests();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
   container.innerHTML = `
     <div class="card">
       <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Beta-Anträge</h3>
       <div style="display: flex; flex-direction: column; gap: 12px;">
-        ${requests.map((r, i) => `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 8px;">
+        ${(requests || []).map((r) => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 8px;" data-id="${r.id}">
             <div>
               <div style="font-weight: 600;">${r.email}</div>
               <div style="font-size: 0.8rem; color: var(--text-muted);">${r.product} — ${r.status}</div>
             </div>
             <div style="display: flex; gap: 8px;">
-              <button class="btn btn-primary btn-sm approve-beta" data-idx="${i}">Genehmigen</button>
-              <button class="btn btn-secondary btn-sm reject-beta" data-idx="${i}">Ablehnen</button>
+              <button class="btn btn-primary btn-sm approve-beta" data-id="${r.id}">Genehmigen</button>
+              <button class="btn btn-secondary btn-sm reject-beta" data-id="${r.id}">Ablehnen</button>
             </div>
           </div>
         `).join("") || "<p style='color: var(--text-muted);'>Keine Anträge vorhanden.</p>"}
@@ -247,18 +280,14 @@ function renderBetaAdmin(container) {
     </div>
   `;
   container.querySelectorAll(".approve-beta").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const list = storage("xsyna_beta_requests", []);
-      list[btn.dataset.idx].status = "approved";
-      setStorage("xsyna_beta_requests", list);
+    btn.addEventListener("click", async () => {
+      await updateBetaRequestStatus(btn.dataset.id, "approved");
       renderBetaAdmin(container);
     });
   });
   container.querySelectorAll(".reject-beta").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const list = storage("xsyna_beta_requests", []);
-      list[btn.dataset.idx].status = "rejected";
-      setStorage("xsyna_beta_requests", list);
+    btn.addEventListener("click", async () => {
+      await updateBetaRequestStatus(btn.dataset.id, "rejected");
       renderBetaAdmin(container);
     });
   });
@@ -270,7 +299,7 @@ function renderAccount(container) {
       <div class="card">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Profil</h3>
         <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">E-Mail: <span style="color: var(--text);">${state.user?.email || "Gast"}</span></p>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Rolle: <span style="color: var(--cyan); text-transform: uppercase;">${state.role}</span></p>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Rolle: <span style="color: var(--cyan); text-transform: uppercase;">${state.profile?.role || "user"}</span></p>
       </div>
       <div class="card">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Beta-Zugang</h3>
@@ -312,23 +341,22 @@ function renderBetaRequest(container) {
       </form>
     </div>
   `;
-  $("beta-form")?.addEventListener("submit", (e) => {
+  $("beta-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const list = storage("xsyna_beta_requests", []);
-    list.push({
-      email: state.user?.email || "guest@xsyna.de",
+    await createBetaRequest({
+      user_id: state.user.id,
+      email: state.user.email,
       product: $("beta-product").value,
       reason: $("beta-reason").value,
-      status: "pending",
-      date: new Date().toISOString(),
     });
-    setStorage("xsyna_beta_requests", list);
     alert("Beta-Antrag gesendet.");
+    $("beta-form").reset();
   });
 }
 
-function renderSupport(container) {
-  const tickets = storage("xsyna_tickets", []);
+async function renderSupport(container) {
+  const { data: tickets, error } = await getTickets();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
   container.innerHTML = `
     <div class="card" style="max-width: 600px; margin-bottom: 24px;">
       <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neues Ticket</h3>
@@ -339,7 +367,7 @@ function renderSupport(container) {
       </form>
     </div>
     <div style="display: flex; flex-direction: column; gap: 12px;">
-      ${tickets.slice().reverse().map((t) => `
+      ${(tickets || []).slice().reverse().map((t) => `
         <div class="card card-sm">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <h4 style="font-weight: 700; font-size: 0.95rem;">${t.subject}</h4>
@@ -350,17 +378,22 @@ function renderSupport(container) {
       `).join("")}
     </div>
   `;
-  $("ticket-form")?.addEventListener("submit", (e) => {
+  $("ticket-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const tickets = storage("xsyna_tickets", []);
-    tickets.push({ subject: $("ticket-subject").value, body: $("ticket-body").value, status: "Offen", date: new Date().toISOString() });
-    setStorage("xsyna_tickets", tickets);
+    await createTicket({
+      user_id: state.user.id,
+      email: state.user.email,
+      subject: $("ticket-subject").value,
+      body: $("ticket-body").value,
+    });
     renderSupport(container);
   });
 }
 
-function renderCRM(container) {
-  const contacts = storage("xsyna_crm_contacts", []);
+async function renderCRM(container) {
+  if (!isStaff(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: contacts, error } = await getCRMContacts();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
   container.innerHTML = `
     <div class="card" style="margin-bottom: 24px;">
       <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Kontakt</h3>
@@ -380,22 +413,27 @@ function renderCRM(container) {
     <div class="card" style="overflow: hidden;">
       <table class="table">
         <thead><tr><th>Name</th><th>E-Mail</th><th>Status</th></tr></thead>
-        <tbody>${contacts.map(c => `<tr><td>${c.name}</td><td>${c.email}</td><td><span style="padding: 2px 8px; border-radius: 999px; background: var(--cyan-soft); color: var(--cyan); font-size: 0.75rem;">${c.status}</span></td></tr>`).join("")}</tbody>
+        <tbody>${(contacts || []).map(c => `<tr><td>${c.name}</td><td>${c.email}</td><td><span style="padding: 2px 8px; border-radius: 999px; background: var(--cyan-soft); color: var(--cyan); font-size: 0.75rem;">${c.status}</span></td></tr>`).join("")}</tbody>
       </table>
     </div>
   `;
-  $("crm-form")?.addEventListener("submit", (e) => {
+  $("crm-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const contacts = storage("xsyna_crm_contacts", []);
-    contacts.push({ name: $("crm-name").value, email: $("crm-email").value, status: $("crm-status").value });
-    setStorage("xsyna_crm_contacts", contacts);
+    await createCRMContact({
+      added_by: state.user.id,
+      name: $("crm-name").value,
+      email: $("crm-email").value,
+      status: $("crm-status").value,
+    });
     renderCRM(container);
   });
 }
 
-function renderTimeTracking(container) {
-  const entries = storage("xsyna_time_entries", []);
+async function renderTimeTracking(container) {
+  const { data: entries, error } = await getTimeEntries(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
   const running = storage("xsyna_timer_running", false);
+  const started = storage("xsyna_timer_started", 0);
   container.innerHTML = `
     <div class="card" style="max-width: 500px; margin-bottom: 24px;">
       <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Zeiterfassung</h3>
@@ -408,23 +446,31 @@ function renderTimeTracking(container) {
     <div class="card" style="overflow: hidden;">
       <table class="table">
         <thead><tr><th>Datum</th><th>Beschreibung</th><th>Dauer</th></tr></thead>
-        <tbody>${entries.slice().reverse().map(e => `<tr><td>${e.date}</td><td>${e.description}</td><td style="font-family: var(--font-mono);">${formatDuration(e.duration)}</td></tr>`).join("")}</tbody>
+        <tbody>${(entries || []).slice().reverse().map(e => `<tr><td>${e.date}</td><td>${e.description}</td><td style="font-family: var(--font-mono);">${formatDuration(e.duration_ms)}</td></tr>`).join("")}</tbody>
       </table>
     </div>
   `;
-  let interval;
-  const started = storage("xsyna_timer_started", 0);
-  if (running) { updateTimerDisplay(); interval = setInterval(updateTimerDisplay, 1000); }
-  $("toggle-timer")?.addEventListener("click", () => {
+  const display = $("timer-display");
+  function update() { display.textContent = formatDuration(Date.now() - started); }
+  if (running) { update(); timerInterval = setInterval(update, 1000); }
+  $("toggle-timer")?.addEventListener("click", async () => {
     const r = storage("xsyna_timer_running", false);
-    if (!r) { setStorage("xsyna_timer_running", true); setStorage("xsyna_timer_started", Date.now()); renderTimeTracking(container); }
-    else {
-      const entries = storage("xsyna_time_entries", []);
-      entries.push({ date: new Date().toISOString().split("T")[0], description: $("timer-desc")?.value || "Arbeit", duration: Date.now() - started });
-      setStorage("xsyna_time_entries", entries); setStorage("xsyna_timer_running", false); renderTimeTracking(container);
+    if (!r) {
+      setStorage("xsyna_timer_running", true);
+      setStorage("xsyna_timer_started", Date.now());
+      renderTimeTracking(container);
+    } else {
+      const startedAt = storage("xsyna_timer_started", 0);
+      await createTimeEntry({
+        user_id: state.user.id,
+        date: new Date().toISOString().split("T")[0],
+        description: $("timer-desc")?.value || "Arbeit",
+        duration_ms: Date.now() - startedAt,
+      });
+      setStorage("xsyna_timer_running", false);
+      renderTimeTracking(container);
     }
   });
-  function updateTimerDisplay() { $("timer-display").textContent = formatDuration(Date.now() - started); }
 }
 
 function formatDuration(ms) {
@@ -432,12 +478,13 @@ function formatDuration(ms) {
   return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((x) => x.toString().padStart(2, "0")).join(":");
 }
 
-function renderChat(container) {
-  const messages = storage("xsyna_chat_messages", [{ user: "SynAI", text: "Hallo! Wie kann ich dir helfen?", type: "bot" }]);
+async function renderChat(container) {
+  const { data: messages, error } = await getChatMessages(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
   container.innerHTML = `
     <div class="card" style="height: 60vh; display: flex; flex-direction: column; max-width: 700px;">
       <div id="chat-history" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; padding-right: 8px;">
-        ${messages.map(m => `<div style="align-self: ${m.type === "user" ? "flex-end" : "flex-start"}; max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; ${m.type === "user" ? "background: var(--cyan-soft); color: var(--text);" : "background: rgba(255,255,255,0.05); color: var(--text-secondary);"}">${m.text}</div>`).join("")}
+        ${(messages || []).map(m => `<div style="align-self: ${m.type === "user" ? "flex-end" : "flex-start"}; max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; ${m.type === "user" ? "background: var(--cyan-soft); color: var(--text);" : "background: rgba(255,255,255,0.05); color: var(--text-secondary);"}">${m.text}</div>`).join("")}
       </div>
       <form id="chat-form" style="display: flex; gap: 12px;">
         <input type="text" id="chat-input" class="input" placeholder="Nachricht schreiben..." autocomplete="off" />
@@ -445,25 +492,24 @@ function renderChat(container) {
       </form>
     </div>
   `;
-  $("chat-form")?.addEventListener("submit", (e) => {
+  $("chat-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = $("chat-input").value.trim();
     if (!text) return;
-    const messages = storage("xsyna_chat_messages", []);
-    messages.push({ user: "Du", text, type: "user" });
-    messages.push({ user: "SynAI", text: "Ich bin noch ein lokales Mini-Experiment, aber ich lerne mit dir.", type: "bot" });
-    setStorage("xsyna_chat_messages", messages);
+    await createChatMessage({ user_id: state.user.id, text, type: "user" });
+    await createChatMessage({ user_id: state.user.id, text: "Ich bin noch ein lokales Mini-Experiment, aber ich lerne mit dir.", type: "bot" });
     renderChat(container);
   });
 }
 
-function renderDocsEditor(container) {
-  const docs = storage("xsyna_docs", { content: "# xSyna Docs\n\nHier kannst du interne Dokumentation editieren." });
+async function renderDocsEditor(container) {
+  const { data: doc, error } = await getDocs();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
   container.innerHTML = `
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; height: 65vh;">
       <div class="card" style="display: flex; flex-direction: column; padding: 0; overflow: hidden;">
         <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.85rem;">Markdown Editor</div>
-        <textarea id="docs-editor" style="flex: 1; background: transparent; border: none; padding: 16px; color: var(--text); font-family: var(--font-mono); font-size: 0.85rem; resize: none; outline: none;">${docs.content}</textarea>
+        <textarea id="docs-editor" style="flex: 1; background: transparent; border: none; padding: 16px; color: var(--text); font-family: var(--font-mono); font-size: 0.85rem; resize: none; outline: none;">${doc?.content || ""}</textarea>
       </div>
       <div class="card" style="display: flex; flex-direction: column; padding: 0; overflow: hidden;">
         <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.85rem;">Vorschau</div>
@@ -476,7 +522,10 @@ function renderDocsEditor(container) {
   const preview = $("docs-preview");
   function update() { preview.innerHTML = simpleMarkdown(editor.value); }
   editor.addEventListener("input", update); update();
-  $("save-docs")?.addEventListener("click", () => { setStorage("xsyna_docs", { content: editor.value }); alert("Dokument gespeichert."); });
+  $("save-docs")?.addEventListener("click", async () => {
+    await saveDocs(editor.value);
+    showAuthMessage("Dokument gespeichert.", "success");
+  });
 }
 
 function simpleMarkdown(md) {
@@ -552,9 +601,9 @@ function renderMiniSynAI(container) {
 }
 
 function todayTime() {
-  const entries = storage("xsyna_time_entries", []);
   const today = new Date().toISOString().split("T")[0];
-  const ms = entries.filter(e => e.date === today && e.duration).reduce((s, e) => s + e.duration, 0);
+  const entries = JSON.parse(localStorage.getItem("xsyna_time_entries") || "[]");
+  const ms = entries.filter(e => e.date === today && e.duration_ms).reduce((s, e) => s + e.duration_ms, 0);
   return formatDuration(ms);
 }
 
@@ -573,7 +622,6 @@ $("login-form")?.addEventListener("submit", async (e) => {
 
 $("logout-btn")?.addEventListener("click", async () => { await supabase.auth.signOut(); location.reload(); });
 
-// Icons
 function dashboardIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`; }
 function adminIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1v6m0 6v6"/><circle cx="12" cy="12" r="9"/></svg>`; }
 function usersIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>`; }
