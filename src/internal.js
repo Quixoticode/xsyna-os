@@ -24,6 +24,14 @@ import {
   isAdmin,
   isStaff,
   syncQueue,
+  getSiteConfig,
+  setSiteConfig,
+  getOrders,
+  createOrder,
+  updateOrder,
+  getOrderUpdates,
+  createOrderUpdate,
+  encryptTrackingData,
 } from "./js/supabase-db.js";
 
 initNeuralBackground("neural-canvas");
@@ -39,6 +47,7 @@ const pages = {
   admin: { title: "Admin-Panel", icon: adminIcon, render: renderAdmin, requires: ["admin"] },
   users: { title: "Benutzer", icon: usersIcon, render: renderUsers, requires: ["admin"] },
   beta: { title: "Beta-Verwaltung", icon: betaIcon, render: renderBetaAdmin, requires: ["admin", "moderator"] },
+  orders: { title: "Aufträge", icon: orderIcon, render: renderOrders, requires: ["admin", "moderator"] },
   account: { title: "Mein Account", icon: accountIcon, render: renderAccount },
   betareq: { title: "Beta-Zugang", icon: betaIcon, render: renderBetaRequest },
   support: { title: "Support", icon: supportIcon, render: renderSupport },
@@ -71,8 +80,7 @@ async function checkSession() {
     state.user = session.user;
     await loadProfile();
   } else {
-    $("auth-view").style.display = "flex";
-    $("app").style.display = "none";
+    window.location.href = "/auth?returnTo=" + encodeURIComponent(window.location.pathname + window.location.search);
   }
 }
 
@@ -600,6 +608,109 @@ function renderMiniSynAI(container) {
   });
 }
 
+async function renderOrders(container) {
+  if (!isStaff(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: orders, error } = await getOrders();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  const { data: config } = await getSiteConfig();
+
+  container.innerHTML = `
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 24px;">
+      <div class="card">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Auftrag</h3>
+        <form id="order-form">
+          <div class="form-group"><input type="text" id="order-title" class="input" placeholder="Titel" required /></div>
+          <div class="form-group"><input type="email" id="order-email" class="input" placeholder="Kunden-E-Mail" required /></div>
+          <div class="form-group"><textarea id="order-desc" class="input" rows="2" placeholder="Beschreibung"></textarea></div>
+          <button type="submit" class="btn btn-primary btn-sm">Auftrag erstellen</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Tracking-Einstellungen</h3>
+        <form id="tracking-config-form">
+          <div class="form-group"><label class="form-label">Schritte (kommasepariert)</label><input type="text" id="tracking-steps" class="input" value="${(config?.tracking_steps || []).join(",")}" /></div>
+          <div class="form-group"><label class="form-label">Tracking-Schlüssel</label><input type="text" id="tracking-key" class="input" value="${config?.tracking_key || ""}" /></div>
+          <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+        </form>
+      </div>
+    </div>
+    <div class="card" style="overflow: hidden;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Aufträge</h3>
+      <table class="table">
+        <thead><tr><th>Titel</th><th>E-Mail</th><th>Status</th><th>Fortschritt</th><th>Aktionen</th></tr></thead>
+        <tbody>${(orders || []).map(o => `
+          <tr>
+            <td>${o.title}</td>
+            <td>${o.customer_email}</td>
+            <td>${o.status}</td>
+            <td>${o.progress}%</td>
+            <td style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary btn-sm edit-order" data-id="${o.id}">Bearbeiten</button>
+              <button class="btn btn-secondary btn-sm copy-link" data-id="${o.id}">Link</button>
+            </td>
+          </tr>
+        `).join("")}</tbody>
+      </table>
+    </div>
+  `;
+
+  $("order-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createOrder({
+      user_id: state.user.id,
+      customer_email: $("order-email").value,
+      title: $("order-title").value,
+      description: $("order-desc").value,
+      status: (config?.tracking_steps || ["Eingegangen"])[0],
+      progress: 0,
+    });
+    renderOrders(container);
+  });
+
+  $("tracking-config-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await setSiteConfig({
+      tracking_key: $("tracking-key").value,
+      tracking_steps: $("tracking-steps").value.split(",").map(s => s.trim()).filter(Boolean),
+    });
+    showAuthMessage("Tracking-Einstellungen gespeichert.", "success");
+  });
+
+  container.querySelectorAll(".edit-order").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const orderId = btn.dataset.id;
+      const orderRes = await getOrder?.(orderId);
+      const order = orderRes?.data;
+      if (!order) return alert("Auftrag nicht gefunden");
+      const updates = await renderOrderEditor(order, config);
+      if (!updates) return;
+      await updateOrder(orderId, updates);
+      await createOrderUpdate({ order_id: orderId, status: updates.status, progress: updates.progress, message: updates.update_message || "" });
+      renderOrders(container);
+    });
+  });
+
+  container.querySelectorAll(".copy-link").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const orderId = btn.dataset.id;
+      const encrypted = await encryptTrackingData(JSON.stringify({ orderId }), config?.tracking_key || "xsyna-default-tracking-key-32");
+      const url = `${window.location.origin}/track?data=${encodeURIComponent(encrypted)}`;
+      navigator.clipboard.writeText(url);
+      showAuthMessage("Tracking-Link kopiert.", "success");
+    });
+  });
+}
+
+async function renderOrderEditor(order, config) {
+  const steps = config?.tracking_steps || ["Eingegangen", "In Bearbeitung", "Qualitätskontrolle", "Abgeschlossen"];
+  const status = prompt(`Neuer Status? (${steps.join(", ")})`, order.status);
+  if (!status) return null;
+  const progress = parseInt(prompt("Fortschritt in % (0-100):", order.progress), 10);
+  if (Number.isNaN(progress)) return null;
+  const message = prompt("Update-Nachricht:");
+  return { status, progress, update_message: message };
+}
+
 function todayTime() {
   const today = new Date().toISOString().split("T")[0];
   const entries = JSON.parse(localStorage.getItem("xsyna_time_entries") || "[]");
@@ -632,6 +743,7 @@ function crmIcon() { return `<svg width="18" height="18" fill="none" stroke="cur
 function timeIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`; }
 function chatIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`; }
 function docsIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`; }
+function orderIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`; }
 function gameIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 12h12"/><path d="M12 6v12"/></svg>`; }
 function synaiIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>`; }
 

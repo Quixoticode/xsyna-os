@@ -4,8 +4,12 @@ const OFFLINE_URLS = [
   "/index.html",
   "/docs",
   "/docs/index.html",
+  "/auth",
+  "/auth/index.html",
   "/internal-services",
   "/internal-services/index.html",
+  "/track",
+  "/track/index.html",
 ];
 
 self.addEventListener("install", (event) => {

@@ -54,30 +54,6 @@
       </div>
     </div>
 
-    <div id="auth-view" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;">
-      <div style="width: 100%; max-width: 420px;">
-        <div class="card" style="padding: 40px;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <h1 style="font-size: 1.75rem; font-weight: 700; margin-bottom: 8px;">xSyna Account</h1>
-            <p style="color: var(--text-secondary); font-size: 0.9rem;">Melde dich an, um auf Produkte, Support und dein Panel zuzugreifen.</p>
-          </div>
-          <form id="login-form" class="form-group">
-            <div class="form-group">
-              <label class="form-label">E-Mail</label>
-              <input type="email" id="email" class="input" placeholder="du@xsyna.de" required />
-            </div>
-            <button type="submit" id="login-button" class="btn btn-primary" style="width: 100%;">Magic-Link senden</button>
-          </form>
-          <div style="position: relative; margin: 24px 0; text-align: center;">
-            <div style="position: absolute; inset: 0; display: flex; align-items: center;"><span style="width: 100%; border-top: 1px solid var(--border);"></span></div>
-            <span style="position: relative; background: var(--bg-card); padding: 0 12px; font-size: 0.75rem; color: var(--text-muted);">oder</span>
-          </div>
-          <button id="passkey-btn" type="button" class="btn btn-secondary" style="width: 100%; opacity: 0.6;" disabled>Passkey (Phase 2)</button>
-          <div id="auth-message" class="hidden" style="margin-top: 16px; text-align: center; font-size: 0.85rem;"></div>
-        </div>
-      </div>
-    </div>
-
     <script type="module" src="/src/internal.js"></script>
     <style>
       @keyframes spin {
