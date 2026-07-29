@@ -1,4 +1,3 @@
-import "./index.css";
 import { supabase } from "./js/supabase.js";
 import "./js/sw-register.js";
 

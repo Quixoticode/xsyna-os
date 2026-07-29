@@ -1,0 +1,17 @@
+{
+  "name": "xSyna",
+  "short_name": "xSyna",
+  "description": "xSyna — Neuromorphic Intelligence Ecosystem",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#0b1120",
+  "icons": [
+    {
+      "src": "/xyna-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -10,6 +10,16 @@ const OFFLINE_URLS = [
   "/internal-services/index.html",
   "/track",
   "/track/index.html",
+  "/src/index.css",
+  "/src/main.js",
+  "/src/docs.js",
+  "/src/auth.js",
+  "/src/internal.js",
+  "/src/track.js",
+  "/src/js/supabase.js",
+  "/src/js/supabase-db.js",
+  "/src/js/neural-bg.js",
+  "/src/js/sw-register.js",
 ];
 
 self.addEventListener("install", (event) => {

@@ -1,5 +1,4 @@
 /* --- xSyna Corporate Dark Design System (Pure CSS) --- */
-@import "tailwindcss";
 
 /* Google Fonts */
 @font-face {
@@ -108,6 +107,14 @@ button {
 
 .grid {
   display: grid;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.gap-3 {
+  gap: 12px;
 }
 
 .gap-4 {

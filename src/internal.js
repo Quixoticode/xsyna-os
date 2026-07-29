@@ -1,4 +1,3 @@
-import "./index.css";
 import { supabase } from "./js/supabase.js";
 import { initNeuralBackground } from "./js/neural-bg.js";
 import "./js/sw-register.js";
@@ -101,7 +100,6 @@ async function initApp() {
   const maintenance = await getMaintenance();
   state.maintenance = maintenance;
 
-  $("auth-view").style.display = "none";
   $("app").style.display = "flex";
   $("user-email").textContent = state.user?.email || "guest@xsyna.de";
   $("role-badge").textContent = (state.profile?.role || "user").toUpperCase();

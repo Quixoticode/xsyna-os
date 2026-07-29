@@ -1,4 +1,3 @@
-import "./index.css";
 import { initNeuralBackground } from "./js/neural-bg.js";
 import "./js/sw-register.js";
 import { decryptTrackingData, getOrder, getOrderUpdates, getSiteConfig } from "./js/supabase-db.js";
