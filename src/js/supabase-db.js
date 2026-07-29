@@ -1146,3 +1146,225 @@ export async function redeemInviteCode(code) {
     return { data: null, error: e };
   }
 }
+
+// --- CEO Features 2.0 ---
+
+export async function getGameScores(limit = 50) {
+  try {
+    const { data, error } = await supabase.from("game_scores").select("*, profiles(email, full_name)").order("score", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createGameScore(payload) {
+  try {
+    const { data, error } = await supabase.from("game_scores").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getSavedPrompts(userId) {
+  try {
+    const { data, error } = await supabase.from("saved_prompts").select("*").or(`user_id.eq.${userId},is_public.eq.true`).order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createSavedPrompt(payload) {
+  try {
+    const { data, error } = await supabase.from("saved_prompts").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function deleteSavedPrompt(id) {
+  try {
+    const { error } = await supabase.from("saved_prompts").delete().eq("id", id);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+export async function getWaitlist() {
+  try {
+    const { data, error } = await supabase.from("waitlist").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createWaitlistEntry(payload) {
+  try {
+    const { data, error } = await supabase.from("waitlist").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateWaitlistStatus(id, status) {
+  try {
+    const { data, error } = await supabase.from("waitlist").update({ status, invited_at: status === 'invited' ? new Date().toISOString() : undefined }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getFeedback() {
+  try {
+    const { data, error } = await supabase.from("feedback").select("*, profiles(email)").order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createFeedback(payload) {
+  try {
+    const { data, error } = await supabase.from("feedback").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateFeedbackStatus(id, status) {
+  try {
+    const { data, error } = await supabase.from("feedback").update({ status }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getApplications() {
+  try {
+    const { data, error } = await supabase.from("applications").select("*, jobs(title)").order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createApplication(payload) {
+  try {
+    const { data, error } = await supabase.from("applications").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateApplicationStatus(id, status) {
+  try {
+    const { data, error } = await supabase.from("applications").update({ status }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getReferrals(userId) {
+  try {
+    const { data, error } = await supabase.from("referrals").select("*").eq("referrer_id", userId).order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createReferral(payload) {
+  try {
+    const { data, error } = await supabase.from("referrals").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function subscribeNewsletter(email) {
+  try {
+    const { data, error } = await supabase.from("newsletter_subscribers").insert({ email }).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getNewsletterSubscribers() {
+  try {
+    const { data, error } = await supabase.from("newsletter_subscribers").select("*").order("subscribed_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function trackUserDevice(payload) {
+  try {
+    const { data, error } = await supabase.from("user_devices").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getUserDevices(userId) {
+  try {
+    const { data, error } = await supabase.from("user_devices").select("*").eq("user_id", userId).order("last_active", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getRolePermissions() {
+  try {
+    const { data, error } = await supabase.from("role_permissions").select("*").order("role_name");
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateRolePermissions(id, permissions) {
+  try {
+    const { data, error } = await supabase.from("role_permissions").update({ permissions, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}

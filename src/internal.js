@@ -100,6 +100,28 @@ import {
   createInviteCode,
   validateInviteCode,
   redeemInviteCode,
+  getGameScores,
+  createGameScore,
+  getSavedPrompts,
+  createSavedPrompt,
+  deleteSavedPrompt,
+  getWaitlist,
+  createWaitlistEntry,
+  updateWaitlistStatus,
+  getFeedback,
+  createFeedback,
+  updateFeedbackStatus,
+  getApplications,
+  createApplication,
+  updateApplicationStatus,
+  getReferrals,
+  createReferral,
+  subscribeNewsletter,
+  getNewsletterSubscribers,
+  trackUserDevice,
+  getUserDevices,
+  getRolePermissions,
+  updateRolePermissions,
 } from "./js/supabase-db.js";
 import { toast, confirmModal, initTheme, toggleTheme, initKeyboardShortcuts, initInactivityTimeout } from "./js/ui.js";
 
@@ -1686,4 +1708,222 @@ async function renderInviteCodes(container) {
     await createInviteCode({ code: $("invite-code").value, uses_left: uses ? parseInt(uses) : null, created_by: state.user.id });
     renderInviteCodes(container);
   });
+}
+// CEO Features 2.0 — append to internal.js
+
+function gameLeaderboardIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20v-8m-5 8v-4m10 4V8"/></svg>`; }
+function promptIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12H3m0 0l4-4m-4 4l4 4"/></svg>`; }
+function waitlistIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>`; }
+function feedbackIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m14-7l-5-5-5 5m5-5v12"/></svg>`; }
+function applicationsIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`; }
+function referralsIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>`; }
+function newsletterIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`; }
+function devicesIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`; }
+function rolesIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`; }
+function sessionsIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`; }
+
+pages.gameLeaderboard = { title: "Leaderboard", icon: gameLeaderboardIcon, render: renderGameLeaderboard };
+pages.savedPrompts = { title: "Saved Prompts", icon: promptIcon, render: renderSavedPrompts };
+pages.waitlist = { title: "Waitlist", icon: waitlistIcon, render: renderWaitlist, requires: ["admin"] };
+pages.feedback = { title: "Feedback", icon: feedbackIcon, render: renderFeedback, requires: ["admin"] };
+pages.applications = { title: "Applications", icon: applicationsIcon, render: renderApplications, requires: ["admin"] };
+pages.referrals = { title: "Referrals", icon: referralsIcon, render: renderReferrals };
+pages.newsletter = { title: "Newsletter", icon: newsletterIcon, render: renderNewsletter, requires: ["admin"] };
+pages.devices = { title: "Devices", icon: devicesIcon, render: renderDevices };
+pages.rolePermissions = { title: "Role Permissions", icon: rolesIcon, render: renderRolePermissions, requires: ["admin"] };
+pages.synaiSessions = { title: "SynAI Sessions", icon: sessionsIcon, render: renderSynaiSessions };
+
+async function renderGameLeaderboard(container) {
+  const { data, error } = await getGameScores();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Leaderboard</h3>
+    <table class="table"><thead><tr><th>Spieler</th><th>Score</th><th>Level</th></tr></thead>
+    <tbody>${(data||[]).map(s => `<tr><td>${s.profiles?.email || s.user_id}</td><td>${s.score}</td><td>${s.level_reached || '-'}</td></tr>`).join('')}</tbody></table></div>
+  `;
+}
+
+async function renderSavedPrompts(container) {
+  const { data, error } = await getSavedPrompts(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Saved Prompts</h3>
+    <form id="sp-form" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <input type="text" id="sp-title" class="input" placeholder="Titel" required style="flex:1;min-width:150px;" />
+      <input type="text" id="sp-text" class="input" placeholder="Prompt Text" required style="flex:2;min-width:200px;" />
+      <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+    </form>
+    <ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:8px;">
+      ${(data||[]).map(p => `
+        <li style="display:flex;justify-content:space-between;padding:8px;background:rgba(255,255,255,0.05);border-radius:4px;">
+          <div><div style="font-weight:700;">${p.title}</div><div style="font-size:0.85rem;color:var(--text-muted);">${p.prompt_text}</div></div>
+          <button class="btn btn-secondary btn-sm sp-del" data-id="${p.id}" style="color:#ef4444">X</button>
+        </li>
+      `).join('')}
+    </ul></div>
+  `;
+  $("sp-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createSavedPrompt({ user_id: state.user.id, title: $("sp-title").value, prompt_text: $("sp-text").value });
+    toast("Prompt gespeichert", "success");
+    renderSavedPrompts(container);
+  });
+  container.querySelectorAll(".sp-del").forEach(b => b.addEventListener("click", async () => {
+    if (await confirmModal("Wirklich löschen?")) {
+      await deleteSavedPrompt(b.dataset.id);
+      renderSavedPrompts(container);
+    }
+  }));
+}
+
+async function renderWaitlist(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data, error } = await getWaitlist();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Waitlist</h3>
+    <table class="table"><thead><tr><th>E-Mail</th><th>Name</th><th>Status</th><th>Aktion</th></tr></thead>
+    <tbody>${(data||[]).map(w => `
+      <tr>
+        <td>${w.email}</td><td>${w.name || '-'}</td><td>${w.status}</td>
+        <td><button class="btn btn-secondary btn-sm wl-invite" data-id="${w.id}">Einladen</button></td>
+      </tr>
+    `).join('')}</tbody></table></div>
+  `;
+  container.querySelectorAll(".wl-invite").forEach(b => b.addEventListener("click", async () => {
+    await updateWaitlistStatus(b.dataset.id, "invited");
+    toast("Status aktualisiert", "success");
+    renderWaitlist(container);
+  }));
+}
+
+async function renderFeedback(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data, error } = await getFeedback();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Feedback</h3>
+    <table class="table"><thead><tr><th>Kategorie</th><th>Nachricht</th><th>Rating</th><th>Status</th><th>Aktion</th></tr></thead>
+    <tbody>${(data||[]).map(f => `
+      <tr>
+        <td>${f.category || '-'}</td><td>${f.message}</td><td>${f.rating ? '★'.repeat(f.rating) : '-'}</td><td>${f.status}</td>
+        <td><button class="btn btn-secondary btn-sm fb-close" data-id="${f.id}">Schließen</button></td>
+      </tr>
+    `).join('')}</tbody></table></div>
+  `;
+  container.querySelectorAll(".fb-close").forEach(b => b.addEventListener("click", async () => {
+    await updateFeedbackStatus(b.dataset.id, "closed");
+    toast("Feedback geschlossen", "success");
+    renderFeedback(container);
+  }));
+}
+
+async function renderApplications(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data, error } = await getApplications();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Bewerbungen</h3>
+    <table class="table"><thead><tr><th>Stelle</th><th>Kandidat</th><th>E-Mail</th><th>Status</th><th>Aktion</th></tr></thead>
+    <tbody>${(data||[]).map(a => `
+      <tr>
+        <td>${a.jobs?.title || '-'}</td><td>${a.name}</td><td>${a.email}</td><td>${a.status}</td>
+        <td><button class="btn btn-secondary btn-sm ap-interview" data-id="${a.id}">Interview</button></td>
+      </tr>
+    `).join('')}</tbody></table></div>
+  `;
+  container.querySelectorAll(".ap-interview").forEach(b => b.addEventListener("click", async () => {
+    await updateApplicationStatus(b.dataset.id, "interview");
+    toast("Status aktualisiert", "success");
+    renderApplications(container);
+  }));
+}
+
+async function renderReferrals(container) {
+  const { data, error } = await getReferrals(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Referrals</h3>
+    <form id="ref-form" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <input type="email" id="ref-email" class="input" placeholder="Freund E-Mail" required style="flex:1;min-width:200px;" />
+      <button type="submit" class="btn btn-primary btn-sm">Einladen</button>
+    </form>
+    <table class="table"><thead><tr><th>Geworben</th><th>Status</th><th>Reward</th></tr></thead>
+    <tbody>${(data||[]).map(r => `<tr><td>${r.referred_email}</td><td>${r.status}</td><td>${r.reward_paid ? 'Ja' : 'Nein'}</td></tr>`).join('')}</tbody></table></div>
+  `;
+  $("ref-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createReferral({ referrer_id: state.user.id, referred_email: $("ref-email").value });
+    toast("Referral erstellt", "success");
+    renderReferrals(container);
+  });
+}
+
+async function renderNewsletter(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data, error } = await getNewsletterSubscribers();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Newsletter Abonnenten</h3>
+    <div style="margin-bottom:12px;font-size:0.85rem;color:var(--text-muted);">${(data||[]).length} Abonnenten</div>
+    <table class="table"><thead><tr><th>E-Mail</th><th>Aktiv</th><th>Seit</th></tr></thead>
+    <tbody>${(data||[]).map(n => `<tr><td>${n.email}</td><td>${n.active ? 'Ja' : 'Nein'}</td><td>${new Date(n.subscribed_at).toLocaleDateString('de-DE')}</td></tr>`).join('')}</tbody></table></div>
+  `;
+}
+
+async function renderDevices(container) {
+  const { data, error } = await getUserDevices(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Meine Geräte</h3>
+    <button id="tr-dev" class="btn btn-primary btn-sm" style="margin-bottom:16px;">Aktuelles Gerät tracken</button>
+    <table class="table"><thead><tr><th>Info</th><th>OS</th><th>Browser</th><th>Zuletzt aktiv</th></tr></thead>
+    <tbody>${(data||[]).map(d => `<tr><td>${d.device_info || '-'}</td><td>${d.os || '-'}</td><td>${d.browser || '-'}</td><td>${new Date(d.last_active).toLocaleString('de-DE')}</td></tr>`).join('')}</tbody></table></div>
+  `;
+  $("tr-dev").addEventListener("click", async () => {
+    const ua = navigator.userAgent;
+    const os = ua.includes("Win") ? "Windows" : ua.includes("Mac") ? "macOS" : ua.includes("Linux") ? "Linux" : "Unknown";
+    const browser = ua.includes("Chrome") ? "Chrome" : ua.includes("Firefox") ? "Firefox" : ua.includes("Safari") ? "Safari" : "Browser";
+    await trackUserDevice({ user_id: state.user.id, device_info: ua, os, browser });
+    toast("Gerät getrackt", "success");
+    renderDevices(container);
+  });
+}
+
+async function renderRolePermissions(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data, error } = await getRolePermissions();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">Rollen & Rechte</h3>
+    <table class="table"><thead><tr><th>Rolle</th><th>Berechtigungen (kommasep.)</th><th>Aktion</th></tr></thead>
+    <tbody>${(data||[]).map(r => `
+      <tr>
+        <td>${r.role_name}</td>
+        <td><input type="text" class="input rp-input" data-id="${r.id}" value="${(r.permissions||[]).join(', ')}" /></td>
+        <td><button class="btn btn-secondary btn-sm rp-save" data-id="${r.id}">Speichern</button></td>
+      </tr>
+    `).join('')}</tbody></table></div>
+  `;
+  container.querySelectorAll(".rp-save").forEach(b => b.addEventListener("click", async () => {
+    const id = b.dataset.id;
+    const input = container.querySelector(`.rp-input[data-id="${id}"]`);
+    const perms = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    await updateRolePermissions(id, perms);
+    toast("Berechtigungen aktualisiert", "success");
+    renderRolePermissions(container);
+  }));
+}
+
+async function renderSynaiSessions(container) {
+  container.innerHTML = `
+    <div class="card">
+      <h3 style="margin-bottom:12px;">SynAI Sessions</h3>
+      <p style="color:var(--text-muted);font-size:0.9rem;">Lokale Mini-SynAI Session-Übersicht.</p>
+      <div style="margin-top:16px;padding:12px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:6px;">
+         <p>Session #1 – aktiv – Modell: synai-mini</p>
+         <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">User: ${state.user.email}</p>
+      </div>
+    </div>
+  `;
 }
