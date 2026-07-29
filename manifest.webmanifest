@@ -4,8 +4,11 @@
   "description": "xSyna — Neuromorphic Intelligence Ecosystem",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b1120",
-  "theme_color": "#0b1120",
+  "background_color": "#030508",
+  "theme_color": "#030508",
+  "orientation": "any",
+  "scope": "/",
+  "lang": "de",
   "icons": [
     {
       "src": "/xyna-logo.svg",
@@ -13,5 +16,30 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Zum internen Dashboard",
+      "url": "/internal-services",
+      "icons": [{ "src": "/xyna-logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Docs",
+      "short_name": "Docs",
+      "description": "xSyna Dokumentation",
+      "url": "/docs",
+      "icons": [{ "src": "/xyna-logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Account",
+      "short_name": "Account",
+      "description": "xSyna Account Login",
+      "url": "/auth",
+      "icons": [{ "src": "/xyna-logo.svg", "sizes": "any" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
 }

@@ -78,7 +78,7 @@ $("register-form")?.addEventListener("submit", async (e) => {
   }
 });
 
-async function redirectAfterAuth() {
+export async function redirectAfterAuth() {
   const params = new URLSearchParams(window.location.search);
   const returnTo = params.get("returnTo") || "/internal-services";
   window.location.href = returnTo;
@@ -125,14 +125,30 @@ async function loginWithPasskey() {
   }
 }
 
-$("passkey-btn")?.addEventListener("click", loginWithPasskey);
-$("github-sso-btn")?.addEventListener("click", signInWithGitHub);
-
-// Optional: Third-party OAuth (GitHub) - prepared but requires Supabase provider setup
-async function signInWithGitHub() {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "github",
-    options: { redirectTo: window.location.origin + "/auth" },
-  });
-  if (error) showMessage("SSO-Fehler: " + error.message, "error");
+// SSO (OAuth) providers
+async function signInWithProvider(provider) {
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin + "/auth",
+        queryParams: provider === "apple" ? { response_type: "code", scope: "name email" } : undefined,
+      },
+    });
+    if (error) throw error;
+  } catch (e) {
+    showMessage("SSO-Fehler: " + (e.message || e), "error");
+  }
 }
+
+$("passkey-btn")?.addEventListener("click", loginWithPasskey);
+$("github-sso-btn")?.addEventListener("click", () => signInWithProvider("github"));
+$("google-sso-btn")?.addEventListener("click", () => signInWithProvider("google"));
+$("apple-sso-btn")?.addEventListener("click", () => signInWithProvider("apple"));
+
+// Handle OAuth / magic link callback automatically.
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === "SIGNED_IN" && session) {
+    redirectAfterAuth();
+  }
+});

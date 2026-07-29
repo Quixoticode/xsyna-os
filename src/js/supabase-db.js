@@ -595,3 +595,226 @@ export async function deleteAccount(userId) {
     return { error: e };
   }
 }
+
+// --- Feature flags ---
+
+export async function getFeatureFlags() {
+  try {
+    const { data, error } = await supabase.from("feature_flags").select("*").order("key", { ascending: true });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateFeatureFlag(id, updates) {
+  try {
+    const { data, error } = await supabase.from("feature_flags").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Notifications ---
+
+export async function getNotifications(userId, limit = 100) {
+  try {
+    const { data, error } = await supabase.from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function countUnreadNotifications(userId) {
+  try {
+    const { count, error } = await supabase.from("notifications").select("*", { count: "exact" }).eq("user_id", userId).eq("read", false);
+    if (error) throw error;
+    return { count: count || 0, error: null };
+  } catch (e) {
+    return { count: 0, error: e };
+  }
+}
+
+export async function createNotification({ user_id, title, message, type = "info", payload = {} }) {
+  try {
+    const { data, error } = await supabase.from("notifications").insert({ user_id, title, message, type, payload }).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function markNotificationRead(id) {
+  try {
+    const { data, error } = await supabase.from("notifications").update({ read: true }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function markAllNotificationsRead(userId) {
+  try {
+    const { error } = await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+// --- WebApps / External Apps ---
+
+export async function getWebApps() {
+  try {
+    const { data, error } = await supabase.from("web_apps").select("*").eq("public", true).eq("approved", true).order("name", { ascending: true });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getAllWebApps() {
+  try {
+    const { data, error } = await supabase.from("web_apps").select("*").order("name", { ascending: true });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createWebApp(payload) {
+  try {
+    const { data, error } = await supabase.from("web_apps").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateWebApp(id, updates) {
+  try {
+    const { data, error } = await supabase.from("web_apps").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getWebAppGrants(userId) {
+  try {
+    const { data, error } = await supabase.from("web_app_grants").select("*").eq("user_id", userId);
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createWebAppGrant({ app_id, user_id, scopes = ["read:profile"] }) {
+  try {
+    const { data, error } = await supabase.from("web_app_grants").insert({ app_id, user_id, scopes }).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function deleteWebAppGrant(id) {
+  try {
+    const { error } = await supabase.from("web_app_grants").delete().eq("id", id);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+// --- API Keys ---
+
+function generateApiKey() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array)).replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
+}
+
+export async function getApiKeys(userId) {
+  try {
+    const { data, error } = await supabase.from("user_api_keys").select("id, name, scopes, last_used_at, created_at").eq("user_id", userId).order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createApiKey({ user_id, name, scopes = ["read:profile"] }) {
+  try {
+    const rawKey = "xs_" + generateApiKey();
+    const encoder = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawKey));
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const key_hash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    const { data, error } = await supabase.from("user_api_keys").insert({ user_id, name, key_hash, scopes }).select().single();
+    if (error) throw error;
+    return { data: { ...data, raw_key: rawKey }, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function deleteApiKey(id) {
+  try {
+    const { error } = await supabase.from("user_api_keys").delete().eq("id", id);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+// --- System health ---
+
+export async function getSystemHealth(limit = 50) {
+  try {
+    const { data, error } = await supabase.from("system_health").select("*").order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function insertSystemHealth(payload) {
+  try {
+    const { data, error } = await supabase.from("system_health").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Superuser / admin utilities ---
+
+export async function updateLastSeen(userId) {
+  try {
+    const { error } = await supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", userId);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}

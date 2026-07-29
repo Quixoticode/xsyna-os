@@ -74,7 +74,11 @@
           </div>
 
           <button id="passkey-btn" type="button" class="btn btn-secondary" style="width: 100%;">Mit Passkey anmelden</button>
-          <button id="github-sso-btn" type="button" class="btn btn-secondary" style="width: 100%; margin-top: 12px;">Mit GitHub anmelden</button>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px;">
+            <button id="google-sso-btn" type="button" class="btn btn-secondary" style="padding: 8px 4px; font-size: 0.75rem;">Google</button>
+            <button id="apple-sso-btn" type="button" class="btn btn-secondary" style="padding: 8px 4px; font-size: 0.75rem;">Apple</button>
+            <button id="github-sso-btn" type="button" class="btn btn-secondary" style="padding: 8px 4px; font-size: 0.75rem;">GitHub</button>
+          </div>
           <div id="auth-message" class="hidden" style="margin-top: 16px; text-align: center; font-size: 0.85rem;"></div>
         </div>
       </div>

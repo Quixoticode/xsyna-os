@@ -51,6 +51,25 @@ import {
   getUserPreferences,
   setUserPreferences,
   updatePassword,
+  getFeatureFlags,
+  updateFeatureFlag,
+  getNotifications,
+  countUnreadNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  getWebApps,
+  getAllWebApps,
+  createWebApp,
+  updateWebApp,
+  getWebAppGrants,
+  createWebAppGrant,
+  deleteWebAppGrant,
+  getApiKeys,
+  createApiKey,
+  deleteApiKey,
+  getSystemHealth,
+  insertSystemHealth,
+  updateLastSeen,
 } from "./js/supabase-db.js";
 import { toast, confirmModal, initTheme, toggleTheme, initKeyboardShortcuts, initInactivityTimeout } from "./js/ui.js";
 
@@ -69,10 +88,15 @@ const pages = {
   beta: { title: "Beta-Verwaltung", icon: betaIcon, render: renderBetaAdmin, requires: ["admin", "moderator"] },
   orders: { title: "Aufträge", icon: orderIcon, render: renderOrders, requires: ["admin", "moderator"] },
   account: { title: "Mein Account", icon: accountIcon, render: renderAccount },
+  notifications: { title: "Benachrichtigungen", icon: bellIcon, render: renderNotifications },
+  apikeys: { title: "API Keys", icon: keyIcon, render: renderApiKeys },
+  webapps: { title: "App Directory", icon: docsIcon, render: renderWebApps },
   maintenance: { title: "Wartungsplan", icon: adminIcon, render: renderMaintenancePlanner, requires: ["admin"] },
   announcements: { title: "News", icon: docsIcon, render: renderAnnouncementsAdmin, requires: ["admin"] },
   jobs: { title: "Stellen", icon: usersIcon, render: renderJobsAdmin, requires: ["admin"] },
   audit: { title: "Audit-Log", icon: adminIcon, render: renderAuditLog, requires: ["admin", "moderator"] },
+  features: { title: "Feature Flags", icon: adminIcon, render: renderFeatureFlags, requires: ["admin"] },
+  health: { title: "System Health", icon: timeIcon, render: renderSystemHealth, requires: ["admin"] },
   betareq: { title: "Beta-Zugang", icon: betaIcon, render: renderBetaRequest },
   support: { title: "Support", icon: supportIcon, render: renderSupport },
   crm: { title: "CRM", icon: crmIcon, render: renderCRM, requires: ["admin", "moderator"] },
@@ -133,6 +157,9 @@ async function initApp() {
   if (maintenance?.enabled) showMaintenance(maintenance);
   else { const ms = $("maintenance-screen"); if (ms) ms.style.display = "none"; }
 
+  initNotificationBell();
+  updateLastSeen(state.user.id).catch(() => {});
+
   initTheme();
   initKeyboardShortcuts({
     h: () => navigate("dashboard"),
@@ -144,6 +171,10 @@ async function initApp() {
     d: () => navigate("docs"),
     g: () => navigate("game"),
     s: () => navigate("synai"),
+    w: () => navigate("webapps"),
+    k: () => navigate("apikeys"),
+    f: () => isAdmin(state.profile) && navigate("features"),
+    y: () => isAdmin(state.profile) && navigate("health"),
     m: () => isAdmin(state.profile) && navigate("maintenance"),
     j: () => isAdmin(state.profile) && navigate("announcements"),
     l: () => isAdmin(state.profile) && navigate("jobs"),
@@ -1003,3 +1034,289 @@ async function renderAuditLog(container) {
 }
 
 checkSession();
+
+// --- Notifications ---
+
+async function initNotificationBell() {
+  const header = $("user-email")?.parentElement;
+  if (!header || $("notif-bell")) return;
+  header.insertAdjacentHTML("afterbegin", `
+    <button id="notif-bell" style="background:transparent;border:none;color:var(--text);cursor:pointer;position:relative;margin-right:12px;" aria-label="Benachrichtigungen">
+      ${bellIcon()}
+      <span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);border-radius:50%;width:10px;height:10px;"></span>
+    </button>
+  `);
+  $("notif-bell")?.addEventListener("click", () => navigate("notifications"));
+  await refreshNotificationBadge();
+}
+
+async function refreshNotificationBadge() {
+  if (!state.user) return;
+  const { count } = await countUnreadNotifications(state.user.id);
+  const badge = $("notif-badge");
+  if (badge) badge.style.display = count > 0 ? "block" : "none";
+}
+
+async function renderNotifications(container) {
+  const { data: notifications, error } = await getNotifications(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  const unread = (notifications || []).filter(n => !n.read).length;
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Benachrichtigungen</h3>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">${unread} ungelesen</p>
+      </div>
+      <button id="mark-all-read" class="btn btn-secondary btn-sm">Alle als gelesen markieren</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(notifications || []).map(n => `
+        <div class="card card-sm" style="${n.read ? '' : 'border-left: 3px solid var(--cyan);'}">
+          <div style="display: flex; justify-content: space-between; align-items: start; gap: 12px;">
+            <div>
+              <div style="font-weight: ${n.read ? '400' : '700'}; margin-bottom: 4px;">${n.title}</div>
+              <div style="font-size: 0.85rem; color: var(--text-secondary);">${n.message || ""}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">${new Date(n.created_at).toLocaleString("de-DE")}</div>
+            </div>
+            ${!n.read ? `<button class="btn btn-secondary btn-sm mark-read" data-id="${n.id}">Gelesen</button>` : ""}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("mark-all-read")?.addEventListener("click", async () => {
+    await markAllNotificationsRead(state.user.id);
+    refreshNotificationBadge();
+    renderNotifications(container);
+  });
+
+  container.querySelectorAll(".mark-read").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await markNotificationRead(btn.dataset.id);
+      refreshNotificationBadge();
+      renderNotifications(container);
+    });
+  });
+}
+
+async function renderApiKeys(container) {
+  const { data: keys, error } = await getApiKeys(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer API-Key</h3>
+      <form id="apikey-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Name</label>
+          <input type="text" id="apikey-name" class="input" placeholder="z.B. CI-Deployment" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Erstellen</button>
+      </form>
+      <div id="apikey-raw" style="display: none; margin-top: 16px; padding: 12px; background: rgba(0,240,255,0.05); border: 1px solid rgba(0,240,255,0.2); border-radius: 8px;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Speichere diesen Key sofort. Er wird nie wieder angezeigt.</div>
+        <code id="apikey-raw-value" style="display: block; word-break: break-all; font-family: var(--font-mono); color: var(--cyan);"></code>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(keys || []).map(k => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 600;">${k.name}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Scopes: ${(k.scopes || []).join(", ")} | Erstellt: ${new Date(k.created_at).toLocaleDateString("de-DE")}</div>
+          </div>
+          <button class="btn btn-secondary btn-sm delete-key" data-id="${k.id}">Löschen</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("apikey-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("apikey-name").value.trim();
+    const { data, error } = await createApiKey({ user_id: state.user.id, name });
+    if (error) { showAuthMessage("Fehler: " + error.message, "error"); return; }
+    const rawBox = $("apikey-raw");
+    const rawValue = $("apikey-raw-value");
+    rawBox.style.display = "block";
+    rawValue.textContent = data.raw_key;
+    renderApiKeys(container);
+  });
+
+  container.querySelectorAll(".delete-key").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (await confirmModal("API-Key wirklich löschen?")) {
+        await deleteApiKey(btn.dataset.id);
+        renderApiKeys(container);
+      }
+    });
+  });
+}
+
+async function renderWebApps(container) {
+  const [{ data: apps }, { data: grants }] = await Promise.all([
+    getWebApps(),
+    getWebAppGrants(state.user.id),
+  ]);
+
+  const grantMap = new Map((grants || []).map(g => [g.app_id, g]));
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">xSyna App Directory</h3>
+      <p style="color: var(--text-secondary); font-size: 0.9rem;">Verbinde externe WebApps mit deinem xSyna Account.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      ${(apps || []).map(app => {
+        const grant = grantMap.get(app.id);
+        return `
+          <div class="card card-sm" style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="font-weight: 700;">${app.name}</div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); flex: 1;">${app.description || ""}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Scopes: ${(app.scopes || []).join(", ")}</div>
+            <button class="btn ${grant ? 'btn-secondary' : 'btn-primary'} btn-sm toggle-grant" data-app="${app.id}" data-grant="${grant?.id || ""}" data-active="${!!grant}">
+              ${grant ? "Trennen" : "Verbinden"}
+            </button>
+          </div>
+        `;
+      }).join("")}
+    </div>
+    ${isAdmin(state.profile) ? `
+    <div class="card">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neue App registrieren (Admin)</h3>
+      <form id="webapp-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end;">
+        <div class="form-group" style="margin: 0;"><input type="text" id="wa-name" class="input" placeholder="App Name" required /></div>
+        <div class="form-group" style="margin: 0;"><input type="text" id="wa-slug" class="input" placeholder="Slug" required /></div>
+        <div class="form-group" style="margin: 0;"><input type="text" id="wa-uri" class="input" placeholder="Redirect URI" /></div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Registrieren</button>
+      </form>
+    </div>
+    ` : ""}
+  `;
+
+  container.querySelectorAll(".toggle-grant").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (btn.dataset.active === "true") {
+        await deleteWebAppGrant(btn.dataset.grant);
+      } else {
+        await createWebAppGrant({ app_id: btn.dataset.app, user_id: state.user.id, scopes: ["read:profile"] });
+      }
+      renderWebApps(container);
+    });
+  });
+
+  $("webapp-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createWebApp({
+      owner_id: state.user.id,
+      name: $("wa-name").value,
+      slug: $("wa-slug").value,
+      redirect_uris: [$("wa-uri").value].filter(Boolean),
+    });
+    renderWebApps(container);
+  });
+}
+
+async function renderFeatureFlags(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: flags, error } = await getFeatureFlags();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">Feature Flags</h3>
+      <p style="color: var(--text-secondary); font-size: 0.9rem;">Schalte Funktionen für alle Benutzer ein oder aus.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(flags || []).map(f => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 600;">${f.label}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">${f.description || ""} <span style="color:var(--text-secondary);">(min. Rolle: ${f.min_role})</span></div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" class="flag-toggle" data-id="${f.id}" ${f.enabled ? "checked" : ""} />
+            <span style="margin-left: 8px; font-size: 0.85rem;">${f.enabled ? "Aktiv" : "Inaktiv"}</span>
+          </label>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  container.querySelectorAll(".flag-toggle").forEach(t => {
+    t.addEventListener("change", async () => {
+      await updateFeatureFlag(t.dataset.id, { enabled: t.checked });
+      renderFeatureFlags(container);
+    });
+  });
+}
+
+async function renderSystemHealth(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: metrics, error } = await getSystemHealth(100);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Health-Metric</h3>
+      <form id="health-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end;">
+        <div class="form-group" style="margin: 0;"><input type="text" id="health-metric" class="input" placeholder="Metric" required /></div>
+        <div class="form-group" style="margin: 0;">
+          <select id="health-status" class="input" required>
+            <option value="operational">Operational</option>
+            <option value="degraded">Degraded</option>
+            <option value="down">Down</option>
+            <option value="maintenance">Maintenance</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin: 0;"><input type="text" id="health-value" class="input" placeholder="Value" /></div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Speichern</button>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(metrics || []).map(m => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 600;">${m.metric}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">${new Date(m.created_at).toLocaleString("de-DE")}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-weight: 700; color: ${statusColor(m.status)};">${m.status}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">${m.value || "-"}</div>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("health-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await insertSystemHealth({
+      metric: $("health-metric").value,
+      status: $("health-status").value,
+      value: $("health-value").value,
+    });
+    renderSystemHealth(container);
+  });
+}
+
+function statusColor(status) {
+  switch (status) {
+    case "operational": return "#22d3ee";
+    case "degraded": return "#fbbf24";
+    case "down": return "#f87171";
+    case "maintenance": return "#a78bfa";
+    default: return "#94a3b8";
+  }
+}
+
+function bellIcon() {
+  return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`;
+}
+
+function keyIcon() {
+  return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3-1.5 1.5Z"/></svg>`;
+}

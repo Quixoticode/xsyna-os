@@ -1,4 +1,4 @@
-const CACHE_NAME = "xsyna-v3";
+const CACHE_NAME = "xsyna-v4";
 const OFFLINE_URLS = [
   "/",
   "/index.html",
