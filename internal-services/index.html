@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400..800;1,400..800&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/src/index.css?v=2" />
+    <link rel="stylesheet" href="/src/index.css?v=5" />
     <script type="importmap">
     {
       "imports": {
@@ -34,7 +34,7 @@
       <div id="maintenance-status" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--cyan);">System wird aktualisiert...</div>
     </div>
 
-    <div id="app" class="hidden" style="min-height: 100vh; display: none;">
+    <div id="app" class="hidden" style="min-height: 100vh;">
       <div class="dashboard">
         <aside class="sidebar">
           <div class="sidebar-header">
@@ -69,7 +69,7 @@
       </div>
     </div>
 
-    <script type="module" src="/src/internal.js?v=2"></script>
+    <script type="module" src="/src/internal.js?v=5"></script>
 
     <script>
       // Debug & Fallback: ensure app becomes visible even if JS silently fails
@@ -87,17 +87,30 @@
           });
         }
 
-        // Fallback: if #app is still hidden after 3s, force it visible
+        // Fallback: if #app is still hidden after 3s, show a user-facing reset option
         setTimeout(function() {
           var app = document.getElementById('app');
           if (app && app.classList.contains('hidden')) {
             console.warn('[xSyna] Fallback: forcing #app visible after timeout');
             app.classList.remove('hidden');
-            app.style.display = 'flex';
-            app.style.setProperty('display', 'flex', 'important');
             var content = document.getElementById('page-content');
-            if (content && !content.innerHTML.trim()) {
-              content.innerHTML = '<div style="padding:24px;color:#f87171;text-align:center;">Panel konnte nicht initialisiert werden. Bitte Konsole prüfen und Seite neu laden (Ctrl+F5 / Cmd+Shift+R).</div>';
+            if (content) {
+              content.innerHTML = '<div style="padding:24px;text-align:center;">' +
+                '<p style="color:#f87171; margin-bottom:16px;">Panel konnte nicht initialisiert werden. Der Cache könnte veraltet sein.</p>' +
+                '<button id="xs-clear-cache" style="padding:10px 20px;background:var(--cyan);color:#000;border:none;border-radius:999px;cursor:pointer;font-weight:600;">Cache leeren &amp; neu laden</button>' +
+                '</div>';
+              var btn = document.getElementById('xs-clear-cache');
+              if (btn) {
+                btn.addEventListener('click', function() {
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(regs) {
+                      regs.forEach(function(r) { r.unregister(); });
+                    });
+                  }
+                  localStorage.clear();
+                  window.location.reload(true);
+                });
+              }
             }
           }
         }, 3000);
@@ -109,7 +122,7 @@
         to { transform: rotate(360deg); }
       }
       .hidden { display: none !important; }
-      #app { display: flex !important; }
+      #app { display: flex !important; opacity: 1 !important; visibility: visible !important; }
       #app.hidden { display: none !important; }
       @media (max-width: 768px) {
         .dashboard { flex-direction: column; }
