@@ -1,4 +1,4 @@
-const CACHE_NAME = "xsyna-v7";
+const CACHE_NAME = "xsyna-v8";
 const OFFLINE_URLS = [
   "/",
   "/index.html",
@@ -10,12 +10,15 @@ const OFFLINE_URLS = [
   "/internal-services/index.html",
   "/track/",
   "/track/index.html",
+  "/games/",
+  "/games/index.html",
   "/src/index.css",
   "/src/main.js",
   "/src/docs.js",
   "/src/auth.js",
   "/src/internal.js",
   "/src/track.js",
+  "/src/games.js",
   "/src/js/ui.js",
   "/src/js/supabase.js",
   "/src/js/supabase-db.js",
@@ -23,7 +26,6 @@ const OFFLINE_URLS = [
   "/src/js/sw-register.js",
   "/xyna-logo.svg",
   "/xsyn-icon.svg",
-  "/synai-icon.svg",
   "/xs-labs-icon.svg",
   "/manifest.webmanifest",
 ];
@@ -36,8 +38,17 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(OFFLINE_URLS);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const url of OFFLINE_URLS) {
+        try {
+          const response = await fetch(url, { cache: "no-store" });
+          if (response && response.status === 200) {
+            await cache.put(url, response);
+          }
+        } catch (e) {
+          console.warn("[SW] Could not pre-cache:", url, e);
+        }
+      }
     })
   );
   self.skipWaiting();

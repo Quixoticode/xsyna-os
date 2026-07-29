@@ -163,12 +163,12 @@ async function checkSession() {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
-    if (session) {
-      state.user = session.user;
-      await loadProfile();
-    } else {
+    if (!session || !session.user) {
       window.location.href = "/auth?returnTo=" + encodeURIComponent(window.location.pathname + window.location.search);
+      return;
     }
+    state.user = session.user;
+    await loadProfile();
   } catch (err) {
     console.error("[xSyna] checkSession failed:", err);
     const appEl = $("app");
@@ -181,9 +181,20 @@ async function checkSession() {
 }
 
 async function loadProfile() {
-  const profile = await getProfile(state.user.id);
-  state.profile = profile || { role: "user", permissions: [] };
-  await initApp();
+  try {
+    const profile = await getProfile(state.user.id);
+    state.profile = profile || { role: "user", permissions: [] };
+    await initApp();
+  } catch (err) {
+    console.error("[xSyna] loadProfile failed:", err);
+    const appEl = $("app");
+    if (appEl) {
+      appEl.classList.remove("hidden");
+      appEl.style.display = "flex";
+      appEl.innerHTML = `<div style="padding:24px;color:#f87171;text-align:center;">Fehler beim Laden des Profils: ${escapeHtml(err.message || err)}<br><button id="retry-load" style="margin-top:12px;padding:8px 16px;background:var(--cyan);border:none;border-radius:8px;color:#000;cursor:pointer;">Erneut versuchen</button></div>`;
+      $("retry-load")?.addEventListener("click", () => { location.reload(); });
+    }
+  }
 }
 
 function hasPermission(perms) {
@@ -238,7 +249,15 @@ async function initApp() {
     if (appEl) {
       appEl.classList.remove("hidden");
       appEl.style.display = "flex";
-      appEl.innerHTML = `<div style="padding:24px;color:#f87171;text-align:center;">Fehler beim Initialisieren des Panels: ${escapeHtml(err.message || err)}</div>`;
+      appEl.innerHTML = `<div style="padding:24px;color:#f87171;text-align:center;">
+        <p style="margin-bottom:12px;">Fehler beim Initialisieren des Panels:</p>
+        <pre style="background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;font-size:0.8rem;overflow:auto;text-align:left;max-width:600px;margin:0 auto 16px;white-space:pre-wrap;">${escapeHtml(err.message || err)}</pre>
+        <button id="clear-cache-reload" style="padding:8px 16px;background:var(--cyan);border:none;border-radius:8px;color:#000;cursor:pointer;">Cache leeren & neu laden</button>
+      </div>`;
+      $("clear-cache-reload")?.addEventListener("click", () => {
+        if ("caches" in window) caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).finally(() => location.reload());
+        else location.reload();
+      });
     }
   }
 }
