@@ -6,8 +6,10 @@ const $ = (id) => document.getElementById(id);
 function showMessage(text, type = "info") {
   const el = $("auth-message");
   el.textContent = text;
+  el.classList.remove("hidden");
   el.style.display = "block";
   el.style.color = type === "error" ? "#f87171" : type === "success" ? "#22d3ee" : "#94a3b8";
+  console.log(`[auth] ${type}: ${text}`);
 }
 
 function setTab(tab) {
@@ -29,52 +31,73 @@ $("login-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = $("email").value.trim();
   const password = $("password")?.value;
-  if (!email) return;
+  if (!email) {
+    showMessage("Bitte gib eine E-Mail-Adresse ein.", "error");
+    return;
+  }
 
   $("login-button").disabled = true;
   $("login-button").textContent = "Wird gesendet...";
+  console.log("[auth] login submit", { email, hasPassword: !!password });
 
-  if (password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    $("login-button").disabled = false;
-    $("login-button").textContent = "Anmelden / Magic-Link senden";
-    if (error) showMessage("Fehler: " + error.message, "error");
-    else if (data.session) {
-      showMessage("Erfolgreich angemeldet. Weiterleitung...", "success");
-      redirectAfterAuth();
+  try {
+    if (password) {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (data.session) {
+        showMessage("Erfolgreich angemeldet. Weiterleitung...", "success");
+        redirectAfterAuth();
+      }
+    } else {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin + "/auth" },
+      });
+      if (error) throw error;
+      showMessage("Login-Link gesendet. Bitte E-Mail prüfen.", "success");
     }
-  } else {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin + "/auth" },
-    });
+  } catch (error) {
+    showMessage("Fehler: " + (error.message || error), "error");
+  } finally {
     $("login-button").disabled = false;
     $("login-button").textContent = "Anmelden / Magic-Link senden";
-    if (error) showMessage("Fehler: " + error.message, "error");
-    else showMessage("Login-Link gesendet. Bitte E-Mail prüfen.", "success");
   }
 });
 
 $("register-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = $("register-email").value.trim();
-  const password = $("register-password").value;
-  if (!email || !password) return;
+  const password = $("register-password")?.value;
+  if (!email || !password) {
+    showMessage("Bitte E-Mail und Passwort eingeben.", "error");
+    return;
+  }
+  if (password.length < 6) {
+    showMessage("Das Passwort muss mindestens 6 Zeichen lang sein.", "error");
+    return;
+  }
   $("register-button").disabled = true;
   $("register-button").textContent = "Wird erstellt...";
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { emailRedirectTo: window.location.origin + "/auth" },
-  });
-  $("register-button").disabled = false;
-  $("register-button").textContent = "Konto erstellen";
-  if (error) showMessage("Fehler: " + error.message, "error");
-  else if (data.session) {
-    showMessage("Erfolgreich angemeldet. Weiterleitung...", "success");
-    redirectAfterAuth();
-  } else {
-    showMessage("Konto erstellt. Bitte E-Mail bestätigen.", "success");
+  console.log("[auth] register submit", { email });
+
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin + "/auth" },
+    });
+    if (error) throw error;
+    if (data.session) {
+      showMessage("Erfolgreich angemeldet. Weiterleitung...", "success");
+      redirectAfterAuth();
+    } else {
+      showMessage("Konto erstellt. Bitte E-Mail bestätigen.", "success");
+    }
+  } catch (error) {
+    showMessage("Fehler: " + (error.message || error), "error");
+  } finally {
+    $("register-button").disabled = false;
+    $("register-button").textContent = "Konto erstellen";
   }
 });
 
@@ -85,9 +108,14 @@ export async function redirectAfterAuth() {
 }
 
 async function checkSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-    redirectAfterAuth();
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log("[auth] session check", { hasSession: !!session });
+    if (session) {
+      redirectAfterAuth();
+    }
+  } catch (e) {
+    console.error("[auth] session check failed", e);
   }
 }
 

@@ -1,21 +1,6 @@
 /* --- xSyna Corporate Dark Design System (Pure CSS) --- */
 
-/* Google Fonts */
-@font-face {
-  font-family: "Plus Jakarta Sans";
-  font-style: normal;
-  font-weight: 400 800;
-  font-display: swap;
-  src: url("https://fonts.gstatic.com/s/plusjakartasans/v8/LDIoa08QNE2n0CICx1VgVNNaI4UeifMS2Iij.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url("https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2flifpCrjPVh8gQd0vN-4gU0gR2jDnRjdA.woff2") format("woff2");
-}
+/* Fonts are loaded via Google Fonts link in HTML for reliability */
 
 :root {
   --bg: #0b1120;
