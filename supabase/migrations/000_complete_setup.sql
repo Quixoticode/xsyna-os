@@ -518,7 +518,7 @@ CREATE OR REPLACE FUNCTION public.current_user_role()
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, row_security = off
 AS $$
 DECLARE
   _role text;
@@ -527,6 +527,12 @@ BEGIN
   RETURN _role;
 END;
 $$;
+
+-- Ensure the function is owned by a superuser so it can bypass RLS.
+ALTER FUNCTION public.current_user_role() OWNER TO postgres;
+
+-- Bust the PostgREST schema cache so the new RLS evaluation plan is picked up.
+NOTIFY pgrst, 'reload schema';
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_config ENABLE ROW LEVEL SECURITY;

@@ -1,4 +1,4 @@
-const CACHE_NAME = "xsyna-v5";
+const CACHE_NAME = "xsyna-v7";
 const OFFLINE_URLS = [
   "/",
   "/index.html",
@@ -27,6 +27,12 @@ const OFFLINE_URLS = [
   "/xs-labs-icon.svg",
   "/manifest.webmanifest",
 ];
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
