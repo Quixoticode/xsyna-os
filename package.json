@@ -6,5 +6,8 @@
   "scripts": {
     "dev": "python3 -m http.server 3000",
     "start": "python3 -m http.server 3000"
+  },
+  "dependencies": {
+    "@vly-ai/integrations": "^0.6.12"
   }
 }
