@@ -818,3 +818,331 @@ export async function updateLastSeen(userId) {
     return { error: e };
   }
 }
+
+// --- Teams / Organizations ---
+
+export async function getTeams(userId) {
+  try {
+    const { data, error } = await supabase.from("team_members").select("teams(*)").eq("user_id", userId);
+    if (error) throw error;
+    return { data: (data || []).map(r => r.teams), error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getTeam(teamId) {
+  try {
+    const { data, error } = await supabase.from("teams").select("*").eq("id", teamId).single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createTeam(payload) {
+  try {
+    const { data, error } = await supabase.from("teams").insert(payload).select().single();
+    if (error) throw error;
+    if (data) {
+      await supabase.from("team_members").insert({ team_id: data.id, user_id: payload.owner_id, role: "owner" });
+    }
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getTeamMembers(teamId) {
+  try {
+    const { data, error } = await supabase.from("team_members").select("*, profiles(id, email, full_name)").eq("team_id", teamId);
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function inviteTeamMember(teamId, email, role = "member") {
+  try {
+    const { data: userData } = await supabase.from("profiles").select("id").eq("email", email).single();
+    const userId = userData?.id;
+    const { data, error } = await supabase.from("team_members").insert({ team_id: teamId, user_id: userId, role, invited_email: email }).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Billing & Subscriptions ---
+
+export async function getBillingTiers() {
+  try {
+    const { data, error } = await supabase.from("billing_tiers").select("*").eq("active", true).order("monthly_price", { ascending: true });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getSubscription(teamId) {
+  try {
+    const { data, error } = await supabase.from("subscriptions").select("*").eq("team_id", teamId).single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createSubscription(payload) {
+  try {
+    const { data, error } = await supabase.from("subscriptions").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Inference Logs ---
+
+export async function getInferenceLogs(userId, limit = 100) {
+  try {
+    const { data, error } = await supabase.from("inference_logs").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createInferenceLog(payload) {
+  try {
+    const { data, error } = await supabase.from("inference_logs").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Usage Stats ---
+
+export async function getUsageStats(teamId, limit = 30) {
+  try {
+    const { data, error } = await supabase.from("usage_stats").select("*").eq("team_id", teamId).order("date", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function upsertUsageStat(payload) {
+  try {
+    const { data, error } = await supabase.from("usage_stats").upsert(payload, { onConflict: "team_id,date" }).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Quotas ---
+
+export async function getQuota(teamId) {
+  try {
+    const { data, error } = await supabase.from("quotas").select("*").eq("team_id", teamId).single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function upsertQuota(payload) {
+  try {
+    const { data, error } = await supabase.from("quotas").upsert(payload, { onConflict: "id" }).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Datasets ---
+
+export async function getDatasets(teamId) {
+  try {
+    const { data, error } = await supabase.from("datasets").select("*").eq("team_id", teamId).order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createDataset(payload) {
+  try {
+    const { data, error } = await supabase.from("datasets").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Tuning Jobs ---
+
+export async function getTuningJobs(teamId) {
+  try {
+    const { data, error } = await supabase.from("tuning_jobs").select("*").eq("team_id", teamId).order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createTuningJob(payload) {
+  try {
+    const { data, error } = await supabase.from("tuning_jobs").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateTuningJob(id, updates) {
+  try {
+    const { data, error } = await supabase.from("tuning_jobs").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Webhooks ---
+
+export async function getWebhooks(teamId) {
+  try {
+    const { data, error } = await supabase.from("webhooks").select("*").eq("team_id", teamId).order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createWebhook(payload) {
+  try {
+    const { data, error } = await supabase.from("webhooks").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function deleteWebhook(id) {
+  try {
+    const { error } = await supabase.from("webhooks").delete().eq("id", id);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+// --- Community Model Hub ---
+
+export async function getPublishedModels() {
+  try {
+    const { data, error } = await supabase.from("published_models").select("*").eq("public", true).eq("approved", true).order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getAllPublishedModels() {
+  try {
+    const { data, error } = await supabase.from("published_models").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createPublishedModel(payload) {
+  try {
+    const { data, error } = await supabase.from("published_models").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function approvePublishedModel(id, approved = true) {
+  try {
+    const { data, error } = await supabase.from("published_models").update({ approved }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Invite Codes ---
+
+export async function getInviteCodes() {
+  try {
+    const { data, error } = await supabase.from("invite_codes").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createInviteCode(payload) {
+  try {
+    const { data, error } = await supabase.from("invite_codes").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function validateInviteCode(code) {
+  try {
+    const { data, error } = await supabase.from("invite_codes").select("*").eq("code", code).single();
+    if (error) throw error;
+    const valid = data && (data.uses_left === null || data.uses_left > 0);
+    return { data, valid: !!valid, error: null };
+  } catch (e) {
+    return { data: null, valid: false, error: e };
+  }
+}
+
+export async function redeemInviteCode(code) {
+  try {
+    const { data } = await supabase.from("invite_codes").select("*").eq("code", code).single();
+    if (data && data.uses_left !== null && data.uses_left > 0) {
+      await supabase.from("invite_codes").update({ uses_left: data.uses_left - 1 }).eq("id", data.id);
+    }
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}

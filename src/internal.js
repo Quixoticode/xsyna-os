@@ -70,6 +70,36 @@ import {
   getSystemHealth,
   insertSystemHealth,
   updateLastSeen,
+  getTeams,
+  getTeam,
+  createTeam,
+  getTeamMembers,
+  inviteTeamMember,
+  getBillingTiers,
+  getSubscription,
+  createSubscription,
+  getInferenceLogs,
+  createInferenceLog,
+  getUsageStats,
+  upsertUsageStat,
+  getQuota,
+  upsertQuota,
+  getDatasets,
+  createDataset,
+  getTuningJobs,
+  createTuningJob,
+  updateTuningJob,
+  getWebhooks,
+  createWebhook,
+  deleteWebhook,
+  getPublishedModels,
+  getAllPublishedModels,
+  createPublishedModel,
+  approvePublishedModel,
+  getInviteCodes,
+  createInviteCode,
+  validateInviteCode,
+  redeemInviteCode,
 } from "./js/supabase-db.js";
 import { toast, confirmModal, initTheme, toggleTheme, initKeyboardShortcuts, initInactivityTimeout } from "./js/ui.js";
 
@@ -105,6 +135,15 @@ const pages = {
   docs: { title: "Docs", icon: docsIcon, render: renderDocsEditor, requires: ["admin", "moderator"] },
   game: { title: "xSyna Game", icon: gameIcon, render: renderGame },
   synai: { title: "Mini SynAI", icon: synaiIcon, render: renderMiniSynAI },
+  teams: { title: "Teams", icon: usersIcon, render: renderTeams },
+  billing: { title: "Billing", icon: orderIcon, render: renderBilling },
+  playground: { title: "Playground", icon: synaiIcon, render: renderPlayground },
+  usage: { title: "Usage", icon: timeIcon, render: renderUsage },
+  datasets: { title: "Datasets", icon: docsIcon, render: renderDatasets },
+  tuning: { title: "Tuning Jobs", icon: synaiIcon, render: renderTuningJobs },
+  webhooks2: { title: "Webhooks", icon: docsIcon, render: renderWebhooks2 },
+  modelhub: { title: "Model Hub", icon: gameIcon, render: renderModelHub },
+  invites: { title: "Invite Codes", icon: adminIcon, render: renderInviteCodes, requires: ["admin"] },
 };
 
 let currentPage = "dashboard";
@@ -1319,4 +1358,332 @@ function bellIcon() {
 
 function keyIcon() {
   return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3-1.5 1.5Z"/></svg>`;
+}
+// --- New CEO Features Render Functions ---
+
+async function renderTeams(container) {
+  const { data: teams, error } = await getTeams(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neues Team</h3>
+      <form id="team-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Team Name</label>
+          <input type="text" id="team-name" class="input" placeholder="xSyna Labs" required />
+        </div>
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Slug</label>
+          <input type="text" id="team-slug" class="input" placeholder="xsyna-labs" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Erstellen</button>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(teams || []).map(t => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+          <div>
+            <div style="font-weight: 700;">${t.name}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">${t.slug}</div>
+          </div>
+          <button class="btn btn-secondary btn-sm view-team" data-id="${t.id}">Öffnen</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("team-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createTeam({ name: $("team-name").value, slug: $("team-slug").value, owner_id: state.user.id });
+    renderTeams(container);
+  });
+}
+
+async function renderBilling(container) {
+  const [{ data: tiers }, { data: subscription }] = await Promise.all([
+    getBillingTiers(),
+    getSubscription(state.user?.id).catch(() => ({ data: null })),
+  ]);
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">Aktuelles Abonnement</h3>
+      <p style="color: var(--text-secondary);">${subscription ? `Tier: <strong>${subscription.tier_id}</strong> | Status: ${subscription.status}` : 'Kein aktives Abonnement'}</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+      ${(tiers || []).map(t => `
+        <div class="card card-sm" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-weight: 700; font-size: 1.1rem;">${t.name}</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); flex: 1;">${t.description}</div>
+          <div style="font-size: 1.5rem; font-weight: 700; color: var(--cyan);">€${t.monthly_price}<span style="font-size: 0.75rem; color: var(--text-muted);">/Mo</span></div>
+          <ul style="font-size: 0.85rem; color: var(--text-muted); padding-left: 16px;">
+            ${(t.features || []).map(f => `<li>${f}</li>`).join("")}
+          </ul>
+          <button class="btn btn-primary btn-sm select-tier" data-tier="${t.id}">Wählen</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  container.querySelectorAll(".select-tier").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      toast("Buchung erfolgreich simuliert.", "success");
+    });
+  });
+}
+
+async function renderPlayground(container) {
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">SynAI Inference Playground</h3>
+      <form id="inference-form">
+        <div class="form-group">
+          <label class="form-label">Modell</label>
+          <select id="inference-model" class="input">
+            <option value="synai-mini">SynAI Mini (128 Neuronen)</option>
+            <option value="synai-pro">SynAI Pro (1k Neuronen)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prompt</label>
+          <textarea id="inference-prompt" class="input" rows="4" placeholder="Gib deinem SynAI eine Aufgabe..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Inferenz starten</button>
+      </form>
+      <div id="inference-result" style="margin-top: 24px; display: none; padding: 16px; background: rgba(0,240,255,0.05); border-radius: 8px; font-family: var(--font-mono); font-size: 0.85rem;"></div>
+    </div>
+  `;
+
+  $("inference-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const model = $("inference-model").value;
+    const prompt = $("inference-prompt").value;
+    const result = `[SynAI ${model}] Verarbeite Spike-Patterns für: ${prompt.slice(0, 80)}...`;
+    await createInferenceLog({ user_id: state.user.id, model_name: model, prompt, result, tokens_used: Math.floor(prompt.length / 4), latency_ms: 120 });
+    $("inference-result").style.display = "block";
+    $("inference-result").textContent = result;
+  });
+}
+
+async function renderUsage(container) {
+  const { data: logs } = await getInferenceLogs(state.user.id, 100);
+  const totalTokens = (logs || []).reduce((sum, l) => sum + (l.tokens_used || 0), 0);
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
+      <div class="card card-sm"><div style="color: var(--text-muted); font-size: 0.8rem;">API Calls</div><div style="font-size: 1.5rem; font-weight: 700; color: var(--cyan);">${(logs || []).length}</div></div>
+      <div class="card card-sm"><div style="color: var(--text-muted); font-size: 0.8rem;">Tokens gesamt</div><div style="font-size: 1.5rem; font-weight: 700; color: var(--amber);">${totalTokens}</div></div>
+    </div>
+    <div class="card" style="overflow: hidden;">
+      <table class="table">
+        <thead><tr><th>Zeit</th><th>Modell</th><th>Tokens</th><th>Latenz</th></tr></thead>
+        <tbody>${(logs || []).map(l => `
+          <tr>
+            <td>${new Date(l.created_at).toLocaleString("de-DE")}</td>
+            <td>${l.model_name}</td>
+            <td>${l.tokens_used}</td>
+            <td>${l.latency_ms}ms</td>
+          </tr>
+        `).join("")}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function renderDatasets(container) {
+  const { data: datasets, error } = await getDatasets(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neues Dataset</h3>
+      <form id="dataset-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Name</label>
+          <input type="text" id="dataset-name" class="input" placeholder="Trainingsdaten v1" required />
+        </div>
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Format</label>
+          <input type="text" id="dataset-format" class="input" placeholder=".syn, .csv" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Hinzufügen</button>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(datasets || []).map(d => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 700;">${d.name}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">${d.format || "-"} | ${d.size_bytes ? (d.size_bytes / 1024).toFixed(2) + " KB" : "-"}</div>
+          </div>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">${new Date(d.created_at).toLocaleDateString("de-DE")}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("dataset-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createDataset({ team_id: state.user.id, name: $("dataset-name").value, format: $("dataset-format").value });
+    renderDatasets(container);
+  });
+}
+
+async function renderTuningJobs(container) {
+  const { data: jobs, error } = await getTuningJobs(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Tuning-Job</h3>
+      <form id="tuning-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Name</label>
+          <input type="text" id="tuning-name" class="input" placeholder="Custom Vision Model" required />
+        </div>
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Base Model</label>
+          <input type="text" id="tuning-base" class="input" placeholder="synai-mini" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Starten</button>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(jobs || []).map(j => `
+        <div class="card card-sm">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="font-weight: 700;">${j.name}</div>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">${j.status}</span>
+        </div>
+        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
+          <div style="width: ${j.progress}%; height: 100%; background: linear-gradient(135deg, var(--cyan), var(--amber));"></div>
+        </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("tuning-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createTuningJob({ team_id: state.user.id, name: $("tuning-name").value, base_model: $("tuning-base").value });
+    renderTuningJobs(container);
+  });
+}
+
+async function renderWebhooks2(container) {
+  const { data: hooks, error } = await getWebhooks(state.user.id);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Webhook</h3>
+      <form id="webhook-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Endpoint URL</label>
+          <input type="text" id="webhook-url" class="input" placeholder="https://api.example.com/webhook" required />
+        </div>
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Events (kommasep.)</label>
+          <input type="text" id="webhook-events" class="input" placeholder="tuning.completed,order.created" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Hinzufügen</button>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(hooks || []).map(h => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 700;">${h.endpoint_url}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">${(h.events || []).join(", ")}</div>
+          </div>
+          <button class="btn btn-secondary btn-sm delete-webhook" data-id="${h.id}">Löschen</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("webhook-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createWebhook({ team_id: state.user.id, endpoint_url: $("webhook-url").value, events: $("webhook-events").value.split(",").map(s => s.trim()).filter(Boolean) });
+    renderWebhooks2(container);
+  });
+
+  container.querySelectorAll(".delete-webhook").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (await confirmModal("Webhook löschen?")) {
+        await deleteWebhook(btn.dataset.id);
+        renderWebhooks2(container);
+      }
+    });
+  });
+}
+
+async function renderModelHub(container) {
+  const [{ data: models }, { data: allModels }] = await Promise.all([getPublishedModels(), isAdmin(state.profile) ? getAllPublishedModels() : Promise.resolve({ data: null })]);
+  const displayModels = isAdmin(state.profile) ? (allModels || models) : (models || []);
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Community Model Hub</h3>
+      <p style="color: var(--text-secondary);">Entdecke und teile fine-tuned xSyna Modelle.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
+      ${(displayModels || []).map(m => `
+        <div class="card card-sm" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-weight: 700;">${m.model_name}</div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); flex: 1;">${m.description || ""}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Base: ${m.base_model || "-"} | Downloads: ${m.downloads}</div>
+          ${isAdmin(state.profile) ? `<button class="btn btn-secondary btn-sm approve-model" data-id="${m.id}" data-approved="${m.approved}">${m.approved ? "Freigabe entziehen" : "Freigeben"}</button>` : ""}
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  container.querySelectorAll(".approve-model").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await approvePublishedModel(btn.dataset.id, btn.dataset.approved !== "true");
+      renderModelHub(container);
+    });
+  });
+}
+
+async function renderInviteCodes(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: codes, error } = await getInviteCodes();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Invite Code</h3>
+      <form id="invite-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Code</label>
+          <input type="text" id="invite-code" class="input" placeholder="BETA2026" required />
+        </div>
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
+          <label class="form-label">Verwendungen (leer = unbegrenzt)</label>
+          <input type="number" id="invite-uses" class="input" placeholder="100" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Erstellen</button>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(codes || []).map(c => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 700; font-family: var(--font-mono);">${c.code}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Verbleibend: ${c.uses_left ?? "∞"}</div>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("invite-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const uses = $("invite-uses").value;
+    await createInviteCode({ code: $("invite-code").value, uses_left: uses ? parseInt(uses) : null, created_by: state.user.id });
+    renderInviteCodes(container);
+  });
 }
