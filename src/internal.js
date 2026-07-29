@@ -26,12 +26,33 @@ import {
   getSiteConfig,
   setSiteConfig,
   getOrders,
+  getOrder,
   createOrder,
   updateOrder,
   getOrderUpdates,
   createOrderUpdate,
   encryptTrackingData,
+  getMaintenanceSchedule,
+  createMaintenanceSchedule,
+  updateMaintenanceSchedule,
+  deleteMaintenanceSchedule,
+  getAnnouncements,
+  getAllAnnouncements,
+  createAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
+  getJobs,
+  getAllJobs,
+  createJob,
+  updateJob,
+  deleteJob,
+  getAuditLog,
+  logAction,
+  getUserPreferences,
+  setUserPreferences,
+  updatePassword,
 } from "./js/supabase-db.js";
+import { toast, confirmModal, initTheme, toggleTheme, initKeyboardShortcuts, initInactivityTimeout } from "./js/ui.js";
 
 initNeuralBackground("neural-canvas");
 
@@ -48,6 +69,10 @@ const pages = {
   beta: { title: "Beta-Verwaltung", icon: betaIcon, render: renderBetaAdmin, requires: ["admin", "moderator"] },
   orders: { title: "Aufträge", icon: orderIcon, render: renderOrders, requires: ["admin", "moderator"] },
   account: { title: "Mein Account", icon: accountIcon, render: renderAccount },
+  maintenance: { title: "Wartungsplan", icon: adminIcon, render: renderMaintenancePlanner, requires: ["admin"] },
+  announcements: { title: "News", icon: docsIcon, render: renderAnnouncementsAdmin, requires: ["admin"] },
+  jobs: { title: "Stellen", icon: usersIcon, render: renderJobsAdmin, requires: ["admin"] },
+  audit: { title: "Audit-Log", icon: adminIcon, render: renderAuditLog, requires: ["admin", "moderator"] },
   betareq: { title: "Beta-Zugang", icon: betaIcon, render: renderBetaRequest },
   support: { title: "Support", icon: supportIcon, render: renderSupport },
   crm: { title: "CRM", icon: crmIcon, render: renderCRM, requires: ["admin", "moderator"] },
@@ -60,6 +85,7 @@ const pages = {
 
 let currentPage = "dashboard";
 let timerInterval = null;
+let realtimeChannel = null;
 
 function $(id) { return document.getElementById(id); }
 function storage(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } }
@@ -105,7 +131,25 @@ async function initApp() {
   $("role-badge").textContent = (state.profile?.role || "user").toUpperCase();
 
   if (maintenance?.enabled) showMaintenance(maintenance);
-  else $("maintenance-screen").style.display = "none";
+  else { const ms = $("maintenance-screen"); if (ms) ms.style.display = "none"; }
+
+  initTheme();
+  initKeyboardShortcuts({
+    h: () => navigate("dashboard"),
+    a: () => isAdmin(state.profile) && navigate("admin"),
+    u: () => isAdmin(state.profile) && navigate("users"),
+    o: () => isStaff(state.profile) && navigate("orders"),
+    t: () => navigate("time"),
+    n: () => navigate("support"),
+    d: () => navigate("docs"),
+    g: () => navigate("game"),
+    s: () => navigate("synai"),
+    m: () => isAdmin(state.profile) && navigate("maintenance"),
+    j: () => isAdmin(state.profile) && navigate("announcements"),
+    l: () => isAdmin(state.profile) && navigate("jobs"),
+    e: () => isStaff(state.profile) && navigate("audit"),
+  });
+  initInactivityTimeout(async () => { await supabase.auth.signOut(); window.location.href = "/auth"; }, 30 * 60 * 1000);
 
   renderSidebar();
   navigate(currentPage);
@@ -134,6 +178,10 @@ function navigate(page) {
   const content = $("page-content");
   content.innerHTML = "";
   clearInterval(timerInterval);
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
   pages[page].render(content);
   renderSidebar();
 }
@@ -299,7 +347,8 @@ async function renderBetaAdmin(container) {
   });
 }
 
-function renderAccount(container) {
+async function renderAccount(container) {
+  const prefs = await getUserPreferences(state.user?.id);
   container.innerHTML = `
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
       <div class="card">
@@ -308,22 +357,30 @@ function renderAccount(container) {
         <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Rolle: <span style="color: var(--cyan); text-transform: uppercase;">${state.profile?.role || "user"}</span></p>
       </div>
       <div class="card">
-        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Beta-Zugang</h3>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Bewirb dich für SynAI, xSyn und weitere Produkte.</p>
-        <button onclick="window.dispatchEvent(new CustomEvent('xsnav',{detail:'betareq'}))" class="btn btn-primary btn-sm">Beta beantragen</button>
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Sicherheit</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Ändere dein Passwort oder verwalte deinen Account.</p>
+        <button id="change-password" class="btn btn-secondary btn-sm" style="margin-bottom: 12px;">Passwort ändern</button>
+        <button id="delete-account" class="btn btn-secondary btn-sm" style="color:#ef4444;border-color:rgba(239,68,68,0.4);">Account löschen</button>
+      </div>
+      <div class="card">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Erscheinungsbild</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Aktuelles Theme: <span id="current-theme">${prefs?.data?.theme || "system"}</span></p>
+        <button id="toggle-theme" class="btn btn-secondary btn-sm">Theme wechseln</button>
       </div>
       <div class="card">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Support</h3>
         <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Kontaktiere das xSyna Support-Team.</p>
         <button onclick="window.dispatchEvent(new CustomEvent('xsnav',{detail:'support'}))" class="btn btn-primary btn-sm">Ticket erstellen</button>
       </div>
-      <div class="card">
-        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Bewerbung</h3>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Bewirb dich auf offene Positionen.</p>
-        <button class="btn btn-secondary btn-sm" onclick="alert('Bewerbungsformular folgt in Phase 2')">Jetzt bewerben</button>
-      </div>
     </div>
   `;
+  $("change-password")?.addEventListener("click", changePassword);
+  $("delete-account")?.addEventListener("click", deleteAccountAction);
+  $("toggle-theme")?.addEventListener("click", async () => {
+    const next = toggleTheme();
+    $("current-theme").textContent = next;
+    await setUserPreferences(state.user.id, { theme: next, notifications_enabled: prefs?.data?.notifications_enabled ?? true });
+  });
 }
 
 function renderBetaRequest(container) {
@@ -612,6 +669,15 @@ async function renderOrders(container) {
   if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
   const { data: config } = await getSiteConfig();
 
+  realtimeChannel = supabase.channel("orders-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+      renderOrders(container);
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "order_updates" }, () => {
+      renderOrders(container);
+    })
+    .subscribe();
+
   container.innerHTML = `
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 24px;">
       <div class="card">
@@ -718,18 +784,22 @@ function todayTime() {
 
 window.addEventListener("xsnav", (e) => navigate(e.detail));
 
-$("login-form")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = $("email").value.trim();
-  if (!email) return;
-  $("login-button").disabled = true; $("login-button").textContent = "Wird gesendet...";
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + "/internal-services" } });
-  $("login-button").disabled = false; $("login-button").textContent = "Magic-Link senden";
-  if (error) showAuthMessage("Fehler: " + error.message, "error");
-  else showAuthMessage("Login-Link gesendet. Bitte E-Mail prüfen.", "success");
-});
+async function changePassword() {
+  const newPassword = prompt("Neues Passwort (min. 6 Zeichen):");
+  if (!newPassword || newPassword.length < 6) return toast("Passwort zu kurz", "error");
+  const { error } = await updatePassword(newPassword);
+  if (error) toast("Fehler: " + error.message, "error");
+  else toast("Passwort erfolgreich aktualisiert", "success");
+}
 
-$("logout-btn")?.addEventListener("click", async () => { await supabase.auth.signOut(); location.reload(); });
+async function deleteAccountAction() {
+  if (!await confirmModal("Account unwiderruflich löschen? Alle Daten werden entfernt.")) return;
+  await supabase.from("profiles").delete().eq("id", state.user.id);
+  localStorage.clear();
+  await supabase.auth.signOut();
+  toast("Account wurde entfernt. Du wurdest abgemeldet.", "success");
+  setTimeout(() => { window.location.href = "/"; }, 1500);
+}
 
 function dashboardIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`; }
 function adminIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1v6m0 6v6"/><circle cx="12" cy="12" r="9"/></svg>`; }
@@ -744,5 +814,192 @@ function docsIcon() { return `<svg width="18" height="18" fill="none" stroke="cu
 function orderIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`; }
 function gameIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 12h12"/><path d="M12 6v12"/></svg>`; }
 function synaiIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>`; }
+
+async function renderMaintenancePlanner(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: schedules, error } = await getMaintenanceSchedule();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neue Wartungsplanung</h3>
+      <form id="maintenance-schedule-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end;">
+        <div class="form-group" style="margin: 0;"><input type="text" id="ms-title" class="input" placeholder="Titel" required /></div>
+        <div class="form-group" style="margin: 0;"><input type="datetime-local" id="ms-starts" class="input" required /></div>
+        <div class="form-group" style="margin: 0;"><input type="datetime-local" id="ms-ends" class="input" /></div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Hinzufügen</button>
+      </form>
+    </div>
+    <div class="card" style="overflow: hidden;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Geplante Wartungen</h3>
+      <table class="table">
+        <thead><tr><th>Titel</th><th>Start</th><th>Ende</th><th>Status</th><th>Aktionen</th></tr></thead>
+        <tbody>${(schedules || []).map(s => `
+          <tr>
+            <td>${s.title}</td>
+            <td>${new Date(s.starts_at).toLocaleString("de-DE")}</td>
+            <td>${s.ends_at ? new Date(s.ends_at).toLocaleString("de-DE") : "-"}</td>
+            <td>${s.status}</td>
+            <td style="display: flex; gap: 8px;">
+              ${["scheduled","in_progress","completed","cancelled"].filter(st => st !== s.status).map(st => `<button class="btn btn-secondary btn-sm ms-status" data-id="${s.id}" data-status="${st}">${st}</button>`).join("")}
+              <button class="btn btn-secondary btn-sm ms-delete" data-id="${s.id}" style="color:#ef4444;border-color:rgba(239,68,68,0.4);">Löschen</button>
+            </td>
+          </tr>
+        `).join("")}</tbody>
+      </table>
+    </div>
+  `;
+
+  $("maintenance-schedule-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createMaintenanceSchedule({
+      title: $("ms-title").value,
+      starts_at: new Date($("ms-starts").value).toISOString(),
+      ends_at: $("ms-ends").value ? new Date($("ms-ends").value).toISOString() : null,
+      created_by: state.user.id,
+    });
+    renderMaintenancePlanner(container);
+  });
+
+  container.querySelectorAll(".ms-status").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await updateMaintenanceSchedule(btn.dataset.id, { status: btn.dataset.status });
+      renderMaintenancePlanner(container);
+    });
+  });
+
+  container.querySelectorAll(".ms-delete").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (await confirmModal("Wartungseintrag löschen?")) {
+        await deleteMaintenanceSchedule(btn.dataset.id);
+        renderMaintenancePlanner(container);
+      }
+    });
+  });
+}
+
+async function renderAnnouncementsAdmin(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: items, error } = await getAllAnnouncements();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neue Announcement</h3>
+      <form id="announcement-form" style="display: grid; grid-template-columns: 1fr; gap: 12px;">
+        <div class="form-group" style="margin: 0;"><input type="text" id="an-title" class="input" placeholder="Titel" required /></div>
+        <div class="form-group" style="margin: 0;"><textarea id="an-body" class="input" rows="2" placeholder="Text"></textarea></div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <label style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.9rem;"><input type="checkbox" id="an-pinned" /> Angeheftet</label>
+          <label style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.9rem;"><input type="checkbox" id="an-published" checked /> Veröffentlicht</label>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-left: auto;">Hinzufügen</button>
+        </div>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(items || []).map(a => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 600;">${a.title} ${a.pinned ? "📌" : ""} ${a.published ? "" : "<span style='color:var(--text-muted);font-size:0.75rem;'>(Entwurf)</span>"}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">${a.body?.slice(0, 80)}...</div>
+          </div>
+          <button class="btn btn-secondary btn-sm an-delete" data-id="${a.id}" style="color:#ef4444;border-color:rgba(239,68,68,0.4);">Löschen</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("announcement-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createAnnouncement({
+      title: $("an-title").value,
+      body: $("an-body").value,
+      pinned: $("an-pinned").checked,
+      published: $("an-published").checked,
+      created_by: state.user.id,
+    });
+    renderAnnouncementsAdmin(container);
+  });
+
+  container.querySelectorAll(".an-delete").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (await confirmModal("Announcement löschen?")) {
+        await deleteAnnouncement(btn.dataset.id);
+        renderAnnouncementsAdmin(container);
+      }
+    });
+  });
+}
+
+async function renderJobsAdmin(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: jobs, error } = await getAllJobs();
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neue Stelle</h3>
+      <form id="job-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end;">
+        <div class="form-group" style="margin: 0;"><input type="text" id="job-title" class="input" placeholder="Titel" required /></div>
+        <div class="form-group" style="margin: 0;"><input type="text" id="job-dept" class="input" placeholder="Abteilung" /></div>
+        <div class="form-group" style="margin: 0;"><input type="text" id="job-location" class="input" placeholder="Ort" /></div>
+        <div class="form-group" style="margin: 0;"><input type="text" id="job-reqs" class="input" placeholder="Anforderungen (kommasep.)" /></div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Hinzufügen</button>
+      </form>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${(jobs || []).map(j => `
+        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 600;">${j.title} <span style="font-size:0.75rem;color:var(--text-muted);">${j.department} | ${j.location}</span></div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">${j.active ? "🟢 Aktiv" : "🔴 Inaktiv"}</div>
+          </div>
+          <button class="btn btn-secondary btn-sm job-toggle" data-id="${j.id}" data-active="${j.active}">${j.active ? "Deaktivieren" : "Aktivieren"}</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  $("job-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await createJob({
+      title: $("job-title").value,
+      department: $("job-dept").value,
+      location: $("job-location").value,
+      requirements: $("job-reqs").value.split(",").map(s => s.trim()).filter(Boolean),
+      active: true,
+      created_by: state.user.id,
+    });
+    renderJobsAdmin(container);
+  });
+
+  container.querySelectorAll(".job-toggle").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await updateJob(btn.dataset.id, { active: btn.dataset.active !== "true" });
+      renderJobsAdmin(container);
+    });
+  });
+}
+
+async function renderAuditLog(container) {
+  if (!isStaff(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: logs, error } = await getAuditLog(100);
+  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
+  container.innerHTML = `
+    <div class="card" style="overflow: hidden;">
+      <table class="table">
+        <thead><tr><th>Zeit</th><th>Aktion</th><th>Tabelle</th><th>Payload</th></tr></thead>
+        <tbody>${(logs || []).map(l => `
+          <tr>
+            <td>${new Date(l.created_at).toLocaleString("de-DE")}</td>
+            <td>${l.action}</td>
+            <td>${l.table_name || "-"}</td>
+            <td><pre style="font-size:0.75rem;color:var(--text-muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;">${JSON.stringify(l.payload).slice(0, 120)}</pre></td>
+          </tr>
+        `).join("")}</tbody>
+      </table>
+    </div>
+  `;
+}
 
 checkSession();

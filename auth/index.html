@@ -49,7 +49,11 @@
               <label class="form-label">E-Mail</label>
               <input type="email" id="email" class="input" placeholder="du@xsyna.de" required />
             </div>
-            <button type="submit" id="login-button" class="btn btn-primary" style="width: 100%;">Magic-Link senden</button>
+            <div class="form-group">
+              <label class="form-label">Passwort <span style="color: var(--text-muted); font-size: 0.75rem;">(optional – für Magic-Link leer lassen)</span></label>
+              <input type="password" id="password" class="input" placeholder="••••••••" />
+            </div>
+            <button type="submit" id="login-button" class="btn btn-primary" style="width: 100%;">Anmelden / Magic-Link senden</button>
           </form>
 
           <form id="register-form" class="form-group" style="display: none;">
@@ -69,7 +73,8 @@
             <span style="position: relative; background: var(--bg-card); padding: 0 12px; font-size: 0.75rem; color: var(--text-muted);">oder</span>
           </div>
 
-          <button id="passkey-btn" type="button" class="btn btn-secondary" style="width: 100%; opacity: 0.6;" disabled>Passkey (Phase 2)</button>
+          <button id="passkey-btn" type="button" class="btn btn-secondary" style="width: 100%;">Mit Passkey anmelden</button>
+          <button id="github-sso-btn" type="button" class="btn btn-secondary" style="width: 100%; margin-top: 12px;">Mit GitHub anmelden</button>
           <div id="auth-message" class="hidden" style="margin-top: 16px; text-align: center; font-size: 0.85rem;"></div>
         </div>
       </div>

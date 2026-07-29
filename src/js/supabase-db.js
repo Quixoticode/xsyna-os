@@ -383,3 +383,215 @@ export async function decryptTrackingData(cipherBase64, secret) {
   const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
   return new TextDecoder().decode(decrypted);
 }
+
+// --- Maintenance schedule ---
+
+export async function getMaintenanceSchedule() {
+  try {
+    const { data, error } = await supabase.from("maintenance_schedule").select("*").order("starts_at", { ascending: true });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createMaintenanceSchedule(payload) {
+  try {
+    const { data, error } = await supabase.from("maintenance_schedule").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateMaintenanceSchedule(id, updates) {
+  try {
+    const { data, error } = await supabase.from("maintenance_schedule").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function deleteMaintenanceSchedule(id) {
+  try {
+    const { error } = await supabase.from("maintenance_schedule").delete().eq("id", id);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+// --- Announcements ---
+
+export async function getAnnouncements() {
+  try {
+    const { data, error } = await supabase.from("announcements").select("*").eq("published", true).order("pinned", { ascending: false }).order("published_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getAllAnnouncements() {
+  try {
+    const { data, error } = await supabase.from("announcements").select("*").order("published_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createAnnouncement(payload) {
+  try {
+    const { data, error } = await supabase.from("announcements").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateAnnouncement(id, updates) {
+  try {
+    const { data, error } = await supabase.from("announcements").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function deleteAnnouncement(id) {
+  try {
+    const { error } = await supabase.from("announcements").delete().eq("id", id);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+// --- Jobs ---
+
+export async function getJobs() {
+  try {
+    const { data, error } = await supabase.from("jobs").select("*").eq("active", true).order("published_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function getAllJobs() {
+  try {
+    const { data, error } = await supabase.from("jobs").select("*").order("published_at", { ascending: false });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function createJob(payload) {
+  try {
+    const { data, error } = await supabase.from("jobs").insert(payload).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function updateJob(id, updates) {
+  try {
+    const { data, error } = await supabase.from("jobs").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function deleteJob(id) {
+  try {
+    const { error } = await supabase.from("jobs").delete().eq("id", id);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+// --- Audit log ---
+
+export async function getAuditLog(limit = 100) {
+  try {
+    const { data, error } = await supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function logAction({ user_id, action, table_name, record_id, payload }) {
+  try {
+    const { error } = await supabase.from("audit_log").insert({ user_id, action, table_name, record_id, payload });
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+// --- User preferences ---
+
+export async function getUserPreferences(userId) {
+  try {
+    const { data, error } = await supabase.from("user_preferences").select("*").eq("id", userId).single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function setUserPreferences(userId, updates) {
+  try {
+    const { data, error } = await supabase.from("user_preferences").upsert({ id: userId, ...updates, updated_at: new Date().toISOString() }, { onConflict: "id" }).select().single();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+// --- Account ---
+
+export async function updatePassword(newPassword) {
+  try {
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
+export async function deleteAccount(userId) {
+  try {
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) throw error;
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
