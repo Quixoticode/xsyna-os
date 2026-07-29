@@ -3,12 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>xSyna Internal Services</title>
     <link rel="icon" type="image/svg+xml" href="/xyna-logo.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400..800;1,400..800&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/src/index.css" />
+    <link rel="stylesheet" href="/src/index.css?v=2" />
     <script type="importmap">
     {
       "imports": {
@@ -31,7 +34,7 @@
       <div id="maintenance-status" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--cyan);">System wird aktualisiert...</div>
     </div>
 
-    <div id="app" class="hidden" style="min-height: 100vh;">
+    <div id="app" class="hidden" style="min-height: 100vh; display: none;">
       <div class="dashboard">
         <aside class="sidebar">
           <div class="sidebar-header">
@@ -66,13 +69,47 @@
       </div>
     </div>
 
-    <script type="module" src="/src/internal.js"></script>
+    <script type="module" src="/src/internal.js?v=2"></script>
+
+    <script>
+      // Debug & Fallback: ensure app becomes visible even if JS silently fails
+      (function() {
+        var start = performance.now();
+        console.log('[xSyna] internal-services page parsed at', new Date().toISOString());
+
+        // Force service worker update to clear stale caches
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            registrations.forEach(function(registration) {
+              registration.update();
+              console.log('[xSyna] SW update requested:', registration.scope);
+            });
+          });
+        }
+
+        // Fallback: if #app is still hidden after 3s, force it visible
+        setTimeout(function() {
+          var app = document.getElementById('app');
+          if (app && app.classList.contains('hidden')) {
+            console.warn('[xSyna] Fallback: forcing #app visible after timeout');
+            app.classList.remove('hidden');
+            app.style.display = 'flex';
+            app.style.setProperty('display', 'flex', 'important');
+            var content = document.getElementById('page-content');
+            if (content && !content.innerHTML.trim()) {
+              content.innerHTML = '<div style="padding:24px;color:#f87171;text-align:center;">Panel konnte nicht initialisiert werden. Bitte Konsole prüfen und Seite neu laden (Ctrl+F5 / Cmd+Shift+R).</div>';
+            }
+          }
+        }, 3000);
+      })();
+    </script>
+
     <style>
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
       .hidden { display: none !important; }
-      #app { display: flex; }
+      #app { display: flex !important; }
       #app.hidden { display: none !important; }
       @media (max-width: 768px) {
         .dashboard { flex-direction: column; }

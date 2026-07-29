@@ -127,6 +127,7 @@ import {
 import { toast, confirmModal, initTheme, toggleTheme, initKeyboardShortcuts, initInactivityTimeout, escapeHtml } from "./js/ui.js";
 
 initNeuralBackground("neural-canvas");
+console.log("[xSyna] internal.js loaded, neural bg initialized");
 
 const state = {
   user: null,
@@ -186,6 +187,7 @@ function showAuthMessage(text, type = "info") {
 }
 
 async function checkSession() {
+  console.log("[xSyna] checkSession started");
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
