@@ -65,9 +65,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (isExternal(url)) return;
 
-  const isDocument = event.request.mode === "navigate" || event.request.destination === "document";
-  const isScript = event.request.destination === "script" || event.request.destination === "style";
-
+  // Network-first: try live fetch, fall back to cache only when offline
   event.respondWith(
     fetch(event.request, { cache: "no-store" })
       .then((response) => {

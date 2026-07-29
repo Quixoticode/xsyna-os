@@ -279,7 +279,7 @@ function renderSidebar() {
     .filter(([, p]) => hasPermission(p.requires))
     .map(([key, page]) => `
       <button data-page="${key}" class="sidebar-link ${currentPage === key ? "active" : ""}">
-        ${page.icon}
+        ${page.icon()}
         <span>${page.title}</span>
       </button>
     `).join("");
@@ -319,7 +319,7 @@ function renderDashboard(container) {
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px;">
         ${Object.entries(pages).filter(([k]) => k !== "dashboard").map(([k, p]) => `
           <button onclick="window.dispatchEvent(new CustomEvent('xsnav',{detail:'${k}'}))" class="card card-sm" style="text-align: center; cursor: pointer; background: transparent;">
-            <div style="display: flex; justify-content: center; margin-bottom: 8px; color: var(--cyan);">${p.icon}</div>
+            <div style="display: flex; justify-content: center; margin-bottom: 8px; color: var(--cyan);">${p.icon()}</div>
             <div style="font-size: 0.8rem; font-weight: 600;">${p.title}</div>
           </button>
         `).join("")}

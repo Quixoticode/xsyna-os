@@ -513,6 +513,21 @@ CREATE TABLE public.role_permissions (
 
 -- 12. ROW LEVEL SECURITY - POLICIES
 
+-- Helper function to read the current user's role without triggering RLS recursion.
+CREATE OR REPLACE FUNCTION public.current_user_role()
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _role text;
+BEGIN
+  SELECT role INTO _role FROM public.profiles WHERE id = auth.uid();
+  RETURN _role;
+END;
+$$;
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.maintenance_mode ENABLE ROW LEVEL SECURITY;
@@ -561,219 +576,219 @@ ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
 
 -- profiles
 CREATE POLICY "profiles_self_select" ON public.profiles FOR SELECT
-  USING (auth.uid() = id OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (auth.uid() = id OR public.current_user_role() = 'admin');
 CREATE POLICY "profiles_self_update" ON public.profiles FOR UPDATE
-  USING (auth.uid() = id OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (auth.uid() = id OR public.current_user_role() = 'admin');
 CREATE POLICY "profiles_admin_insert" ON public.profiles FOR INSERT WITH CHECK (true);
 
 -- site_config
 CREATE POLICY "site_config_public_read" ON public.site_config FOR SELECT USING (true);
 CREATE POLICY "site_config_admin_write" ON public.site_config FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- maintenance_mode
 CREATE POLICY "maintenance_public_read" ON public.maintenance_mode FOR SELECT USING (true);
 CREATE POLICY "maintenance_admin_write" ON public.maintenance_mode FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- feature_flags
 CREATE POLICY "feature_flags_public_read" ON public.feature_flags FOR SELECT USING (true);
 CREATE POLICY "feature_flags_admin_write" ON public.feature_flags FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- system_health
 CREATE POLICY "system_health_public_read" ON public.system_health FOR SELECT USING (true);
 CREATE POLICY "system_health_admin_write" ON public.system_health FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- announcements
 CREATE POLICY "announcements_public_read" ON public.announcements FOR SELECT USING (published = true);
 CREATE POLICY "announcements_admin_write" ON public.announcements FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- jobs
 CREATE POLICY "jobs_public_read" ON public.jobs FOR SELECT USING (active = true);
 CREATE POLICY "jobs_admin_write" ON public.jobs FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- docs
 CREATE POLICY "docs_public_read" ON public.docs FOR SELECT USING (true);
 CREATE POLICY "docs_write" ON public.docs FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (public.current_user_role() IN ('admin','moderator'));
 
 -- beta_requests
 CREATE POLICY "beta_requests_self" ON public.beta_requests FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (user_id = auth.uid() OR public.current_user_role() IN ('admin','moderator'));
 
 -- support_tickets
 CREATE POLICY "support_tickets_self" ON public.support_tickets FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (user_id = auth.uid() OR public.current_user_role() IN ('admin','moderator'));
 
 -- crm_contacts
 CREATE POLICY "crm_contacts_all_read" ON public.crm_contacts FOR SELECT USING (true);
 CREATE POLICY "crm_contacts_write" ON public.crm_contacts FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (public.current_user_role() IN ('admin','moderator'));
 
 -- time_entries
 CREATE POLICY "time_entries_self" ON public.time_entries FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- chat_messages
 CREATE POLICY "chat_messages_self" ON public.chat_messages FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- user_preferences
 CREATE POLICY "user_preferences_self" ON public.user_preferences FOR ALL USING (auth.uid() = id);
 
 -- notifications
 CREATE POLICY "notifications_self" ON public.notifications FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- orders
 CREATE POLICY "orders_public_by_id" ON public.orders FOR SELECT USING (is_public = true);
 CREATE POLICY "orders_staff_manage" ON public.orders FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (public.current_user_role() IN ('admin','moderator'));
 
 -- order_updates
 CREATE POLICY "order_updates_public" ON public.order_updates FOR SELECT
   USING (EXISTS (SELECT 1 FROM public.orders o WHERE o.id = order_id AND o.is_public = true));
 CREATE POLICY "order_updates_staff_manage" ON public.order_updates FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (public.current_user_role() IN ('admin','moderator'));
 
 -- maintenance_schedule
 CREATE POLICY "maintenance_schedule_public_read" ON public.maintenance_schedule FOR SELECT USING (true);
 CREATE POLICY "maintenance_schedule_admin_write" ON public.maintenance_schedule FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- audit_log
 CREATE POLICY "audit_log_staff_read" ON public.audit_log FOR SELECT
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (public.current_user_role() IN ('admin','moderator'));
 CREATE POLICY "audit_log_insert" ON public.audit_log FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- web_apps
 CREATE POLICY "web_apps_public_read" ON public.web_apps FOR SELECT
-  USING (public = true AND approved = true OR owner_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public = true AND approved = true OR owner_id = auth.uid() OR public.current_user_role() = 'admin');
 CREATE POLICY "web_apps_owner_write" ON public.web_apps FOR ALL
-  USING (owner_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (owner_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- web_app_grants
 CREATE POLICY "web_app_grants_self" ON public.web_app_grants FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- user_api_keys
 CREATE POLICY "user_api_keys_self" ON public.user_api_keys FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- teams
 CREATE POLICY "teams_member_read" ON public.teams FOR SELECT
-  USING (owner_id = auth.uid() OR EXISTS (SELECT 1 FROM public.team_members tm WHERE tm.team_id = teams.id AND tm.user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (owner_id = auth.uid() OR EXISTS (SELECT 1 FROM public.team_members tm WHERE tm.team_id = teams.id AND tm.user_id = auth.uid()) OR public.current_user_role() = 'admin');
 CREATE POLICY "teams_owner_write" ON public.teams FOR ALL
-  USING (owner_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (owner_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- team_members
 CREATE POLICY "team_members_member_read" ON public.team_members FOR SELECT
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR user_id = auth.uid() OR public.current_user_role() = 'admin');
 CREATE POLICY "team_members_owner_write" ON public.team_members FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.teams t WHERE t.id = team_members.team_id AND t.owner_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM public.teams t WHERE t.id = team_members.team_id AND t.owner_id = auth.uid()) OR public.current_user_role() = 'admin');
 
 -- billing_tiers
 CREATE POLICY "billing_tiers_public_read" ON public.billing_tiers FOR SELECT USING (true);
 CREATE POLICY "billing_tiers_admin_write" ON public.billing_tiers FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- subscriptions
 CREATE POLICY "subscriptions_team_read" ON public.subscriptions FOR SELECT
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 CREATE POLICY "subscriptions_admin_write" ON public.subscriptions FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- inference_logs
 CREATE POLICY "inference_logs_self" ON public.inference_logs FOR ALL
-  USING (user_id = auth.uid() OR team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 
 -- usage_stats
 CREATE POLICY "usage_stats_team_read" ON public.usage_stats FOR SELECT
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 
 -- quotas
 CREATE POLICY "quotas_team_read" ON public.quotas FOR SELECT
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 CREATE POLICY "quotas_admin_write" ON public.quotas FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- datasets
 CREATE POLICY "datasets_team_access" ON public.datasets FOR ALL
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 
 -- tuning_jobs
 CREATE POLICY "tuning_jobs_team_access" ON public.tuning_jobs FOR ALL
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 
 -- webhooks
 CREATE POLICY "webhooks_team_access" ON public.webhooks FOR ALL
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 
 -- webhook_deliveries
 CREATE POLICY "webhook_deliveries_team_access" ON public.webhook_deliveries FOR SELECT
-  USING (webhook_id IN (SELECT id FROM public.webhooks WHERE team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid())) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (webhook_id IN (SELECT id FROM public.webhooks WHERE team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid())) OR public.current_user_role() = 'admin');
 
 -- published_models
 CREATE POLICY "published_models_public_read" ON public.published_models FOR SELECT
-  USING (public = true AND approved = true OR team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public = true AND approved = true OR team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 CREATE POLICY "published_models_team_write" ON public.published_models FOR ALL
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 
 -- invite_codes
 CREATE POLICY "invite_codes_team_read" ON public.invite_codes FOR SELECT
-  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (team_id IN (SELECT team_id FROM public.team_members WHERE user_id = auth.uid()) OR public.current_user_role() = 'admin');
 CREATE POLICY "invite_codes_admin_write" ON public.invite_codes FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- game_scores
 CREATE POLICY "game_scores_public_read" ON public.game_scores FOR SELECT USING (true);
 CREATE POLICY "game_scores_self_write" ON public.game_scores FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- synai_sessions
 CREATE POLICY "synai_sessions_self" ON public.synai_sessions FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- saved_prompts
 CREATE POLICY "saved_prompts_public_read" ON public.saved_prompts FOR SELECT
-  USING (is_public = true OR user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (is_public = true OR user_id = auth.uid() OR public.current_user_role() = 'admin');
 CREATE POLICY "saved_prompts_self_write" ON public.saved_prompts FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- waitlist
 CREATE POLICY "waitlist_public_insert" ON public.waitlist FOR INSERT WITH CHECK (true);
 CREATE POLICY "waitlist_admin_all" ON public.waitlist FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- feedback
 CREATE POLICY "feedback_self" ON public.feedback FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (user_id = auth.uid() OR public.current_user_role() IN ('admin','moderator'));
 
 -- applications
 CREATE POLICY "applications_self" ON public.applications FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','moderator')));
+  USING (user_id = auth.uid() OR public.current_user_role() IN ('admin','moderator'));
 
 -- referrals
 CREATE POLICY "referrals_self" ON public.referrals FOR ALL
-  USING (referrer_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (referrer_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- newsletter_subscribers
 CREATE POLICY "newsletter_public_insert" ON public.newsletter_subscribers FOR INSERT WITH CHECK (true);
 CREATE POLICY "newsletter_admin_all" ON public.newsletter_subscribers FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- user_devices
 CREATE POLICY "user_devices_self" ON public.user_devices FOR ALL
-  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (user_id = auth.uid() OR public.current_user_role() = 'admin');
 
 -- role_permissions
 CREATE POLICY "role_permissions_public_read" ON public.role_permissions FOR SELECT USING (true);
 CREATE POLICY "role_permissions_admin_write" ON public.role_permissions FOR ALL
-  USING (EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+  USING (public.current_user_role() = 'admin');
 
 -- 13. INDEXES
 
