@@ -39,6 +39,16 @@ CREATE TABLE public.profiles (
   created_at timestamptz DEFAULT now()
 );
 
+-- Role lookup mirror without RLS, used by current_user_role() to avoid recursion.
+CREATE TABLE public.user_roles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  role text NOT NULL DEFAULT 'user' CHECK (role IN ('admin','moderator','beta','user')),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Disable RLS on the mirror table by design: it is only readable by SECURITY DEFINER functions.
+ALTER TABLE public.user_roles DISABLE ROW LEVEL SECURITY;
+
 CREATE TABLE public.site_config (
   id int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   tracking_key text,
@@ -513,19 +523,38 @@ CREATE TABLE public.role_permissions (
 
 -- 12. ROW LEVEL SECURITY - POLICIES
 
+-- Trigger to keep the non-RLS role mirror in sync with public.profiles.
+CREATE OR REPLACE FUNCTION public.sync_user_roles()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF (TG_OP = 'DELETE') THEN
+    DELETE FROM public.user_roles WHERE id = OLD.id;
+    RETURN OLD;
+  END IF;
+  INSERT INTO public.user_roles (id, role, updated_at)
+  VALUES (NEW.id, NEW.role, now())
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER on_profiles_role_changed
+  AFTER INSERT OR UPDATE OF role ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.sync_user_roles();
+
 -- Helper function to read the current user's role without triggering RLS recursion.
 CREATE OR REPLACE FUNCTION public.current_user_role()
 RETURNS text
-LANGUAGE plpgsql
+LANGUAGE sql
+STABLE
 SECURITY DEFINER
-SET search_path = public, row_security = off
+SET search_path = public
 AS $$
-DECLARE
-  _role text;
-BEGIN
-  SELECT role INTO _role FROM public.profiles WHERE id = auth.uid();
-  RETURN _role;
-END;
+  SELECT role FROM public.user_roles WHERE id = auth.uid();
 $$;
 
 -- Ensure the function is owned by a superuser so it can bypass RLS.
@@ -855,6 +884,14 @@ BEGIN
     new.raw_user_meta_data->>'avatar_url'
   );
 
+  INSERT INTO public.user_roles (id, role, updated_at)
+  VALUES (
+    new.id,
+    CASE WHEN is_first_user THEN 'admin' ELSE 'user' END,
+    now()
+  )
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, updated_at = now();
+
   IF is_first_user THEN
     INSERT INTO public.audit_log (user_id, action, table_name, record_id, payload)
     VALUES (new.id, 'SUPERUSER_CREATED', 'profiles', new.id::text, jsonb_build_object('email', new.email));
@@ -918,7 +955,13 @@ BEGIN
   END IF;
 END $$;
 
--- 16. FINAL PRIVILEGES
+-- 16. POPULATE ROLE MIRROR
+-- Backfill existing profiles into the non-RLS role lookup table.
+INSERT INTO public.user_roles (id, role, updated_at)
+SELECT id, role, now() FROM public.profiles
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, updated_at = now();
+
+-- 17. FINAL PRIVILEGES
 
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
