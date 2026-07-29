@@ -76,27 +76,7 @@ import {
   createTeam,
   getTeamMembers,
   inviteTeamMember,
-  getBillingTiers,
-  getSubscription,
-  createSubscription,
-  getInferenceLogs,
-  createInferenceLog,
-  getUsageStats,
-  upsertUsageStat,
-  getQuota,
-  upsertQuota,
-  getDatasets,
-  createDataset,
-  getTuningJobs,
-  createTuningJob,
-  updateTuningJob,
-  getWebhooks,
-  createWebhook,
-  deleteWebhook,
-  getPublishedModels,
-  getAllPublishedModels,
-  createPublishedModel,
-  approvePublishedModel,
+
   getInviteCodes,
   createInviteCode,
   validateInviteCode,
@@ -158,15 +138,7 @@ const pages = {
   chat: { title: "Chat", icon: chatIcon, render: renderChat },
   docs: { title: "Docs", icon: docsIcon, render: renderDocsEditor, requires: ["admin", "moderator"] },
   game: { title: "xSyna Game", icon: gameIcon, render: renderGame },
-  synai: { title: "Mini SynAI", icon: synaiIcon, render: renderMiniSynAI },
   teams: { title: "Teams", icon: usersIcon, render: renderTeams },
-  billing: { title: "Billing", icon: orderIcon, render: renderBilling },
-  playground: { title: "Playground", icon: synaiIcon, render: renderPlayground },
-  usage: { title: "Usage", icon: timeIcon, render: renderUsage },
-  datasets: { title: "Datasets", icon: docsIcon, render: renderDatasets },
-  tuning: { title: "Tuning Jobs", icon: synaiIcon, render: renderTuningJobs },
-  webhooks2: { title: "Webhooks", icon: docsIcon, render: renderWebhooks2 },
-  modelhub: { title: "Model Hub", icon: gameIcon, render: renderModelHub },
   invites: { title: "Invite Codes", icon: adminIcon, render: renderInviteCodes, requires: ["admin"] },
 };
 
@@ -247,9 +219,7 @@ async function initApp() {
     t: () => navigate("time"),
     n: () => navigate("support"),
     d: () => navigate("docs"),
-    g: () => navigate("game"),
-    s: () => navigate("synai"),
-    w: () => navigate("webapps"),
+    g: () => window.open("/games", "_blank"),
     k: () => navigate("apikeys"),
     f: () => isAdmin(state.profile) && navigate("features"),
     y: () => isAdmin(state.profile) && navigate("health"),
@@ -314,7 +284,7 @@ function renderDashboard(container) {
     <div class="card">
       <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 12px;">Willkommen im xSyna Ökosystem</h3>
       <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 24px;">
-        Hier findest du alle internen Tools: CRM, Support, Zeiterfassung, Chat, Docs, das xSyna-Game und das Mini-SynAI-Experiment.
+        Hier findest du alle internen Tools: CRM, Support, Zeiterfassung, Chat, Docs und das xSyna-Game.
       </p>
       <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px;">
         ${Object.entries(pages).filter(([k]) => k !== "dashboard").map(([k, p]) => `
@@ -496,7 +466,18 @@ async function renderAccount(container) {
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Sicherheit</h3>
         <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Ändere dein Passwort oder verwalte deinen Account.</p>
         <button id="change-password" class="btn btn-secondary btn-sm" style="margin-bottom: 12px;">Passwort ändern</button>
+        <button id="register-passkey" class="btn btn-secondary btn-sm" style="margin-bottom: 12px;">Passkey registrieren</button>
         <button id="delete-account" class="btn btn-secondary btn-sm" style="color:#ef4444;border-color:rgba(239,68,68,0.4);">Account löschen</button>
+      </div>
+      <div class="card">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Verknüpfte Konten</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Melde dich alternativ mit SSO oder Passkey an.</p>
+        <div id="linked-identities" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;"></div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+          <button id="link-google" class="btn btn-secondary btn-sm" type="button">Google</button>
+          <button id="link-apple" class="btn btn-secondary btn-sm" type="button">Apple</button>
+          <button id="link-github" class="btn btn-secondary btn-sm" type="button">GitHub</button>
+        </div>
       </div>
       <div class="card">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Erscheinungsbild</h3>
@@ -527,6 +508,11 @@ async function renderAccount(container) {
   });
   $("change-password")?.addEventListener("click", changePassword);
   $("delete-account")?.addEventListener("click", deleteAccountAction);
+  $("register-passkey")?.addEventListener("click", registerPasskeyAction);
+  $("link-google")?.addEventListener("click", () => linkProvider("google"));
+  $("link-apple")?.addEventListener("click", () => linkProvider("apple"));
+  $("link-github")?.addEventListener("click", () => linkProvider("github"));
+  renderIdentities();
   $("toggle-theme")?.addEventListener("click", async () => {
     const next = toggleTheme();
     $("current-theme").textContent = next;
@@ -542,9 +528,9 @@ function renderBetaRequest(container) {
         <div class="form-group">
           <label class="form-label">Produkt</label>
           <select id="beta-product" class="input">
-            <option value="SynAI">SynAI</option>
             <option value="xSyn">xSyn</option>
             <option value="xSyna Labs">xSyna Labs</option>
+            <option value="xSyna Games">xSyna Games</option>
           </select>
         </div>
         <div class="form-group">
@@ -785,34 +771,6 @@ function renderGame(container) {
   });
 }
 
-function renderMiniSynAI(container) {
-  container.innerHTML = `
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
-      <div class="card">
-        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Mini SynAI</h3>
-        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">Lokales, browserbasiertes Neuronen-Experiment. Gib einen Satz ein und beobachte die Spikes.</p>
-        <textarea id="synai-input" class="input" rows="3" placeholder="Gib einen Satz ein..."></textarea>
-        <button id="synai-run" class="btn btn-primary btn-sm" style="margin-top: 12px;">Spike auslösen</button>
-        <div id="synai-output" style="margin-top: 16px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.8rem; min-height: 80px; white-space: pre-wrap;"></div>
-      </div>
-      <div class="card">
-        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Neuronale Aktivität</h3>
-        <canvas id="synai-canvas" width="300" height="200" style="width: 100%; height: 200px; border-radius: 8px; background: rgba(0,0,0,0.3);"></canvas>
-      </div>
-    </div>
-  `;
-  const canvas = $("synai-canvas"), ctx = canvas.getContext("2d");
-  const neurons = Array.from({ length: 12 }, () => ({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, active: Math.random() > 0.5 }));
-  function draw() {
-    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    neurons.forEach(n => { ctx.beginPath(); ctx.arc(n.x, n.y, 4, 0, Math.PI * 2); ctx.fillStyle = n.active ? "var(--cyan)" : "#334"; ctx.fill(); n.active = Math.random() > 0.7; });
-  }
-  setInterval(draw, 200);
-  $("synai-run")?.addEventListener("click", () => {
-    const input = $("synai-input").value.trim() || "Spike";
-    $("synai-output").textContent = `Verarbeite: "${input}"\n> ${input.length} Tokens erkannt\n> Synapse 42 feuert\n> Gewicht angepasst`;
-  });
-}
 
 async function renderOrders(container) {
   if (!isStaff(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
@@ -964,7 +922,7 @@ function chatIcon() { return `<svg width="18" height="18" fill="none" stroke="cu
 function docsIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`; }
 function orderIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`; }
 function gameIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 12h12"/><path d="M12 6v12"/></svg>`; }
-function synaiIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>`; }
+
 
 async function renderMaintenancePlanner(container) {
   if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
@@ -1439,550 +1397,4 @@ function bellIcon() {
 
 function keyIcon() {
   return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3-1.5 1.5Z"/></svg>`;
-}
-// --- New CEO Features Render Functions ---
-
-async function renderTeams(container) {
-  const { data: teams, error } = await getTeams(state.user.id);
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neues Team</h3>
-      <form id="team-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Team Name</label>
-          <input type="text" id="team-name" class="input" placeholder="xSyna Labs" required />
-        </div>
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Slug</label>
-          <input type="text" id="team-slug" class="input" placeholder="xsyna-labs" required />
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Erstellen</button>
-      </form>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      ${(teams || []).map(t => `
-        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-          <div>
-            <div style="font-weight: 700;">${t.name}</div>
-            <div style="font-size: 0.85rem; color: var(--text-muted);">${t.slug}</div>
-          </div>
-          <button class="btn btn-secondary btn-sm view-team" data-id="${t.id}">Öffnen</button>
-        </div>
-      `).join("")}
-    </div>
-  `;
-
-  $("team-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await createTeam({ name: $("team-name").value, slug: $("team-slug").value, owner_id: state.user.id });
-    renderTeams(container);
-  });
-}
-
-async function renderBilling(container) {
-  const [{ data: tiers }, { data: subscription }] = await Promise.all([
-    getBillingTiers(),
-    getSubscription(state.user?.id).catch(() => ({ data: null })),
-  ]);
-
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">Aktuelles Abonnement</h3>
-      <p style="color: var(--text-secondary);">${subscription ? `Tier: <strong>${subscription.tier_id}</strong> | Status: ${subscription.status}` : 'Kein aktives Abonnement'}</p>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
-      ${(tiers || []).map(t => `
-        <div class="card card-sm" style="display: flex; flex-direction: column; gap: 12px;">
-          <div style="font-weight: 700; font-size: 1.1rem;">${t.name}</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); flex: 1;">${t.description}</div>
-          <div style="font-size: 1.5rem; font-weight: 700; color: var(--cyan);">€${t.monthly_price}<span style="font-size: 0.75rem; color: var(--text-muted);">/Mo</span></div>
-          <ul style="font-size: 0.85rem; color: var(--text-muted); padding-left: 16px;">
-            ${(t.features || []).map(f => `<li>${f}</li>`).join("")}
-          </ul>
-          <button class="btn btn-primary btn-sm select-tier" data-tier="${t.id}">Wählen</button>
-        </div>
-      `).join("")}
-    </div>
-  `;
-
-  container.querySelectorAll(".select-tier").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      toast("Buchung erfolgreich simuliert.", "success");
-    });
-  });
-}
-
-async function renderPlayground(container) {
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">SynAI Inference Playground</h3>
-      <form id="inference-form">
-        <div class="form-group">
-          <label class="form-label">Modell</label>
-          <select id="inference-model" class="input">
-            <option value="synai-mini">SynAI Mini (128 Neuronen)</option>
-            <option value="synai-pro">SynAI Pro (1k Neuronen)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Prompt</label>
-          <textarea id="inference-prompt" class="input" rows="4" placeholder="Gib deinem SynAI eine Aufgabe..."></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm">Inferenz starten</button>
-      </form>
-      <div id="inference-result" style="margin-top: 24px; display: none; padding: 16px; background: rgba(0,240,255,0.05); border-radius: 8px; font-family: var(--font-mono); font-size: 0.85rem;"></div>
-    </div>
-  `;
-
-  $("inference-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const model = $("inference-model").value;
-    const prompt = $("inference-prompt").value;
-    const result = `[SynAI ${model}] Verarbeite Spike-Patterns für: ${prompt.slice(0, 80)}...`;
-    await createInferenceLog({ user_id: state.user.id, model_name: model, prompt, result, tokens_used: Math.floor(prompt.length / 4), latency_ms: 120 });
-    $("inference-result").style.display = "block";
-    $("inference-result").textContent = result;
-  });
-}
-
-async function renderUsage(container) {
-  const { data: logs } = await getInferenceLogs(state.user.id, 100);
-  const totalTokens = (logs || []).reduce((sum, l) => sum + (l.tokens_used || 0), 0);
-
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
-      <div class="card card-sm"><div style="color: var(--text-muted); font-size: 0.8rem;">API Calls</div><div style="font-size: 1.5rem; font-weight: 700; color: var(--cyan);">${(logs || []).length}</div></div>
-      <div class="card card-sm"><div style="color: var(--text-muted); font-size: 0.8rem;">Tokens gesamt</div><div style="font-size: 1.5rem; font-weight: 700; color: var(--amber);">${totalTokens}</div></div>
-    </div>
-    <div class="card" style="overflow: hidden;">
-      <table class="table">
-        <thead><tr><th>Zeit</th><th>Modell</th><th>Tokens</th><th>Latenz</th></tr></thead>
-        <tbody>${(logs || []).map(l => `
-          <tr>
-            <td>${new Date(l.created_at).toLocaleString("de-DE")}</td>
-            <td>${l.model_name}</td>
-            <td>${l.tokens_used}</td>
-            <td>${l.latency_ms}ms</td>
-          </tr>
-        `).join("")}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-async function renderDatasets(container) {
-  const { data: datasets, error } = await getDatasets(state.user.id);
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neues Dataset</h3>
-      <form id="dataset-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Name</label>
-          <input type="text" id="dataset-name" class="input" placeholder="Trainingsdaten v1" required />
-        </div>
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Format</label>
-          <input type="text" id="dataset-format" class="input" placeholder=".syn, .csv" />
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Hinzufügen</button>
-      </form>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      ${(datasets || []).map(d => `
-        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-weight: 700;">${d.name}</div>
-            <div style="font-size: 0.85rem; color: var(--text-muted);">${d.format || "-"} | ${d.size_bytes ? (d.size_bytes / 1024).toFixed(2) + " KB" : "-"}</div>
-          </div>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">${new Date(d.created_at).toLocaleDateString("de-DE")}</span>
-        </div>
-      `).join("")}
-    </div>
-  `;
-
-  $("dataset-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await createDataset({ team_id: state.user.id, name: $("dataset-name").value, format: $("dataset-format").value });
-    renderDatasets(container);
-  });
-}
-
-async function renderTuningJobs(container) {
-  const { data: jobs, error } = await getTuningJobs(state.user.id);
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Tuning-Job</h3>
-      <form id="tuning-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Name</label>
-          <input type="text" id="tuning-name" class="input" placeholder="Custom Vision Model" required />
-        </div>
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Base Model</label>
-          <input type="text" id="tuning-base" class="input" placeholder="synai-mini" required />
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Starten</button>
-      </form>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      ${(jobs || []).map(j => `
-        <div class="card card-sm">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <div style="font-weight: 700;">${j.name}</div>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">${j.status}</span>
-        </div>
-        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
-          <div style="width: ${j.progress}%; height: 100%; background: linear-gradient(135deg, var(--cyan), var(--amber));"></div>
-        </div>
-        </div>
-      `).join("")}
-    </div>
-  `;
-
-  $("tuning-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await createTuningJob({ team_id: state.user.id, name: $("tuning-name").value, base_model: $("tuning-base").value });
-    renderTuningJobs(container);
-  });
-}
-
-async function renderWebhooks2(container) {
-  const { data: hooks, error } = await getWebhooks(state.user.id);
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Webhook</h3>
-      <form id="webhook-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Endpoint URL</label>
-          <input type="text" id="webhook-url" class="input" placeholder="https://api.example.com/webhook" required />
-        </div>
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Events (kommasep.)</label>
-          <input type="text" id="webhook-events" class="input" placeholder="tuning.completed,order.created" />
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Hinzufügen</button>
-      </form>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      ${(hooks || []).map(h => `
-        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-weight: 700;">${h.endpoint_url}</div>
-            <div style="font-size: 0.85rem; color: var(--text-muted);">${(h.events || []).join(", ")}</div>
-          </div>
-          <button class="btn btn-secondary btn-sm delete-webhook" data-id="${h.id}">Löschen</button>
-        </div>
-      `).join("")}
-    </div>
-  `;
-
-  $("webhook-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await createWebhook({ team_id: state.user.id, endpoint_url: $("webhook-url").value, events: $("webhook-events").value.split(",").map(s => s.trim()).filter(Boolean) });
-    renderWebhooks2(container);
-  });
-
-  container.querySelectorAll(".delete-webhook").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      if (await confirmModal("Webhook löschen?")) {
-        await deleteWebhook(btn.dataset.id);
-        renderWebhooks2(container);
-      }
-    });
-  });
-}
-
-async function renderModelHub(container) {
-  const [{ data: models }, { data: allModels }] = await Promise.all([getPublishedModels(), isAdmin(state.profile) ? getAllPublishedModels() : Promise.resolve({ data: null })]);
-  const displayModels = isAdmin(state.profile) ? (allModels || models) : (models || []);
-
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Community Model Hub</h3>
-      <p style="color: var(--text-secondary);">Entdecke und teile fine-tuned xSyna Modelle.</p>
-    </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
-      ${(displayModels || []).map(m => `
-        <div class="card card-sm" style="display: flex; flex-direction: column; gap: 12px;">
-          <div style="font-weight: 700;">${m.model_name}</div>
-          <div style="font-size: 0.85rem; color: var(--text-secondary); flex: 1;">${m.description || ""}</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">Base: ${m.base_model || "-"} | Downloads: ${m.downloads}</div>
-          ${isAdmin(state.profile) ? `<button class="btn btn-secondary btn-sm approve-model" data-id="${m.id}" data-approved="${m.approved}">${m.approved ? "Freigabe entziehen" : "Freigeben"}</button>` : ""}
-        </div>
-      `).join("")}
-    </div>
-  `;
-
-  container.querySelectorAll(".approve-model").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      await approvePublishedModel(btn.dataset.id, btn.dataset.approved !== "true");
-      renderModelHub(container);
-    });
-  });
-}
-
-async function renderInviteCodes(container) {
-  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const { data: codes, error } = await getInviteCodes();
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-
-  container.innerHTML = `
-    <div class="card" style="margin-bottom: 24px;">
-      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neuer Invite Code</h3>
-      <form id="invite-form" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Code</label>
-          <input type="text" id="invite-code" class="input" placeholder="BETA2026" required />
-        </div>
-        <div class="form-group" style="margin: 0; flex: 1; min-width: 200px;">
-          <label class="form-label">Verwendungen (leer = unbegrenzt)</label>
-          <input type="number" id="invite-uses" class="input" placeholder="100" />
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Erstellen</button>
-      </form>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      ${(codes || []).map(c => `
-        <div class="card card-sm" style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-weight: 700; font-family: var(--font-mono);">${c.code}</div>
-            <div style="font-size: 0.85rem; color: var(--text-muted);">Verbleibend: ${c.uses_left ?? "∞"}</div>
-          </div>
-        </div>
-      `).join("")}
-    </div>
-  `;
-
-  $("invite-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const uses = $("invite-uses").value;
-    await createInviteCode({ code: $("invite-code").value, uses_left: uses ? parseInt(uses) : null, created_by: state.user.id });
-    renderInviteCodes(container);
-  });
-}
-// CEO Features 2.0 — append to internal.js
-
-function gameLeaderboardIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20v-8m-5 8v-4m10 4V8"/></svg>`; }
-function promptIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12H3m0 0l4-4m-4 4l4 4"/></svg>`; }
-function waitlistIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>`; }
-function feedbackIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m14-7l-5-5-5 5m5-5v12"/></svg>`; }
-function applicationsIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`; }
-function referralsIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>`; }
-function newsletterIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`; }
-function devicesIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`; }
-function rolesIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`; }
-function sessionsIcon() { return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`; }
-
-pages.gameLeaderboard = { title: "Leaderboard", icon: gameLeaderboardIcon, render: renderGameLeaderboard };
-pages.savedPrompts = { title: "Saved Prompts", icon: promptIcon, render: renderSavedPrompts };
-pages.waitlist = { title: "Waitlist", icon: waitlistIcon, render: renderWaitlist, requires: ["admin"] };
-pages.feedback = { title: "Feedback", icon: feedbackIcon, render: renderFeedback, requires: ["admin"] };
-pages.applications = { title: "Applications", icon: applicationsIcon, render: renderApplications, requires: ["admin"] };
-pages.referrals = { title: "Referrals", icon: referralsIcon, render: renderReferrals };
-pages.newsletter = { title: "Newsletter", icon: newsletterIcon, render: renderNewsletter, requires: ["admin"] };
-pages.devices = { title: "Devices", icon: devicesIcon, render: renderDevices };
-pages.rolePermissions = { title: "Role Permissions", icon: rolesIcon, render: renderRolePermissions, requires: ["admin"] };
-pages.synaiSessions = { title: "SynAI Sessions", icon: sessionsIcon, render: renderSynaiSessions };
-
-async function renderGameLeaderboard(container) {
-  const { data, error } = await getGameScores();
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Leaderboard</h3>
-    <table class="table"><thead><tr><th>Spieler</th><th>Score</th><th>Level</th></tr></thead>
-    <tbody>${(data||[]).map(s => `<tr><td>${s.profiles?.email || s.user_id}</td><td>${s.score}</td><td>${s.level_reached || '-'}</td></tr>`).join('')}</tbody></table></div>
-  `;
-}
-
-async function renderSavedPrompts(container) {
-  const { data, error } = await getSavedPrompts(state.user.id);
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Saved Prompts</h3>
-    <form id="sp-form" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-      <input type="text" id="sp-title" class="input" placeholder="Titel" required style="flex:1;min-width:150px;" />
-      <input type="text" id="sp-text" class="input" placeholder="Prompt Text" required style="flex:2;min-width:200px;" />
-      <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
-    </form>
-    <ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:8px;">
-      ${(data||[]).map(p => `
-        <li style="display:flex;justify-content:space-between;padding:8px;background:rgba(255,255,255,0.05);border-radius:4px;">
-          <div><div style="font-weight:700;">${p.title}</div><div style="font-size:0.85rem;color:var(--text-muted);">${p.prompt_text}</div></div>
-          <button class="btn btn-secondary btn-sm sp-del" data-id="${p.id}" style="color:#ef4444">X</button>
-        </li>
-      `).join('')}
-    </ul></div>
-  `;
-  $("sp-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await createSavedPrompt({ user_id: state.user.id, title: $("sp-title").value, prompt_text: $("sp-text").value });
-    toast("Prompt gespeichert", "success");
-    renderSavedPrompts(container);
-  });
-  container.querySelectorAll(".sp-del").forEach(b => b.addEventListener("click", async () => {
-    if (await confirmModal("Wirklich löschen?")) {
-      await deleteSavedPrompt(b.dataset.id);
-      renderSavedPrompts(container);
-    }
-  }));
-}
-
-async function renderWaitlist(container) {
-  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const { data, error } = await getWaitlist();
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Waitlist</h3>
-    <table class="table"><thead><tr><th>E-Mail</th><th>Name</th><th>Status</th><th>Aktion</th></tr></thead>
-    <tbody>${(data||[]).map(w => `
-      <tr>
-        <td>${w.email}</td><td>${w.name || '-'}</td><td>${w.status}</td>
-        <td><button class="btn btn-secondary btn-sm wl-invite" data-id="${w.id}">Einladen</button></td>
-      </tr>
-    `).join('')}</tbody></table></div>
-  `;
-  container.querySelectorAll(".wl-invite").forEach(b => b.addEventListener("click", async () => {
-    await updateWaitlistStatus(b.dataset.id, "invited");
-    toast("Status aktualisiert", "success");
-    renderWaitlist(container);
-  }));
-}
-
-async function renderFeedback(container) {
-  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const { data, error } = await getFeedback();
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Feedback</h3>
-    <table class="table"><thead><tr><th>Kategorie</th><th>Nachricht</th><th>Rating</th><th>Status</th><th>Aktion</th></tr></thead>
-    <tbody>${(data||[]).map(f => `
-      <tr>
-        <td>${f.category || '-'}</td><td>${f.message}</td><td>${f.rating ? '★'.repeat(f.rating) : '-'}</td><td>${f.status}</td>
-        <td><button class="btn btn-secondary btn-sm fb-close" data-id="${f.id}">Schließen</button></td>
-      </tr>
-    `).join('')}</tbody></table></div>
-  `;
-  container.querySelectorAll(".fb-close").forEach(b => b.addEventListener("click", async () => {
-    await updateFeedbackStatus(b.dataset.id, "closed");
-    toast("Feedback geschlossen", "success");
-    renderFeedback(container);
-  }));
-}
-
-async function renderApplications(container) {
-  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const { data, error } = await getApplications();
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Bewerbungen</h3>
-    <table class="table"><thead><tr><th>Stelle</th><th>Kandidat</th><th>E-Mail</th><th>Status</th><th>Aktion</th></tr></thead>
-    <tbody>${(data||[]).map(a => `
-      <tr>
-        <td>${a.jobs?.title || '-'}</td><td>${a.name}</td><td>${a.email}</td><td>${a.status}</td>
-        <td><button class="btn btn-secondary btn-sm ap-interview" data-id="${a.id}">Interview</button></td>
-      </tr>
-    `).join('')}</tbody></table></div>
-  `;
-  container.querySelectorAll(".ap-interview").forEach(b => b.addEventListener("click", async () => {
-    await updateApplicationStatus(b.dataset.id, "interview");
-    toast("Status aktualisiert", "success");
-    renderApplications(container);
-  }));
-}
-
-async function renderReferrals(container) {
-  const { data, error } = await getReferrals(state.user.id);
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Referrals</h3>
-    <form id="ref-form" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-      <input type="email" id="ref-email" class="input" placeholder="Freund E-Mail" required style="flex:1;min-width:200px;" />
-      <button type="submit" class="btn btn-primary btn-sm">Einladen</button>
-    </form>
-    <table class="table"><thead><tr><th>Geworben</th><th>Status</th><th>Reward</th></tr></thead>
-    <tbody>${(data||[]).map(r => `<tr><td>${r.referred_email}</td><td>${r.status}</td><td>${r.reward_paid ? 'Ja' : 'Nein'}</td></tr>`).join('')}</tbody></table></div>
-  `;
-  $("ref-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await createReferral({ referrer_id: state.user.id, referred_email: $("ref-email").value });
-    toast("Referral erstellt", "success");
-    renderReferrals(container);
-  });
-}
-
-async function renderNewsletter(container) {
-  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const { data, error } = await getNewsletterSubscribers();
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Newsletter Abonnenten</h3>
-    <div style="margin-bottom:12px;font-size:0.85rem;color:var(--text-muted);">${(data||[]).length} Abonnenten</div>
-    <table class="table"><thead><tr><th>E-Mail</th><th>Aktiv</th><th>Seit</th></tr></thead>
-    <tbody>${(data||[]).map(n => `<tr><td>${n.email}</td><td>${n.active ? 'Ja' : 'Nein'}</td><td>${new Date(n.subscribed_at).toLocaleDateString('de-DE')}</td></tr>`).join('')}</tbody></table></div>
-  `;
-}
-
-async function renderDevices(container) {
-  const { data, error } = await getUserDevices(state.user.id);
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Meine Geräte</h3>
-    <button id="tr-dev" class="btn btn-primary btn-sm" style="margin-bottom:16px;">Aktuelles Gerät tracken</button>
-    <table class="table"><thead><tr><th>Info</th><th>OS</th><th>Browser</th><th>Zuletzt aktiv</th></tr></thead>
-    <tbody>${(data||[]).map(d => `<tr><td>${d.device_info || '-'}</td><td>${d.os || '-'}</td><td>${d.browser || '-'}</td><td>${new Date(d.last_active).toLocaleString('de-DE')}</td></tr>`).join('')}</tbody></table></div>
-  `;
-  $("tr-dev").addEventListener("click", async () => {
-    const ua = navigator.userAgent;
-    const os = ua.includes("Win") ? "Windows" : ua.includes("Mac") ? "macOS" : ua.includes("Linux") ? "Linux" : "Unknown";
-    const browser = ua.includes("Chrome") ? "Chrome" : ua.includes("Firefox") ? "Firefox" : ua.includes("Safari") ? "Safari" : "Browser";
-    await trackUserDevice({ user_id: state.user.id, device_info: ua, os, browser });
-    toast("Gerät getrackt", "success");
-    renderDevices(container);
-  });
-}
-
-async function renderRolePermissions(container) {
-  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
-  const { data, error } = await getRolePermissions();
-  if (error) { container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`; return; }
-  container.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">Rollen & Rechte</h3>
-    <table class="table"><thead><tr><th>Rolle</th><th>Berechtigungen (kommasep.)</th><th>Aktion</th></tr></thead>
-    <tbody>${(data||[]).map(r => `
-      <tr>
-        <td>${r.role_name}</td>
-        <td><input type="text" class="input rp-input" data-id="${r.id}" value="${(r.permissions||[]).join(', ')}" /></td>
-        <td><button class="btn btn-secondary btn-sm rp-save" data-id="${r.id}">Speichern</button></td>
-      </tr>
-    `).join('')}</tbody></table></div>
-  `;
-  container.querySelectorAll(".rp-save").forEach(b => b.addEventListener("click", async () => {
-    const id = b.dataset.id;
-    const input = container.querySelector(`.rp-input[data-id="${id}"]`);
-    const perms = input.value.split(',').map(s => s.trim()).filter(Boolean);
-    await updateRolePermissions(id, perms);
-    toast("Berechtigungen aktualisiert", "success");
-    renderRolePermissions(container);
-  }));
-}
-
-async function renderSynaiSessions(container) {
-  container.innerHTML = `
-    <div class="card">
-      <h3 style="margin-bottom:12px;">SynAI Sessions</h3>
-      <p style="color:var(--text-muted);font-size:0.9rem;">Lokale Mini-SynAI Session-Übersicht.</p>
-      <div style="margin-top:16px;padding:12px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:6px;">
-         <p>Session #1 – aktiv – Modell: synai-mini</p>
-         <p style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">User: ${state.user.email}</p>
-      </div>
-    </div>
-  `;
 }
