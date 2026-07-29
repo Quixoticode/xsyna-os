@@ -61,6 +61,18 @@ export async function getProfile(userId) {
   }
 }
 
+export async function updateProfile(userId, updates) {
+  if (!userId) return { data: null, error: new Error("userId required") };
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(updates)
+    .eq("id", userId)
+    .select()
+    .single();
+  if (data) cacheWrite("profile_" + userId, data);
+  return { data, error };
+}
+
 export async function setUserRole(email, role) {
   const { data, error } = await supabase.from("profiles").update({ role }).eq("email", email).select().single();
   return { data, error };

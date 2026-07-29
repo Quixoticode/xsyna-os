@@ -3,6 +3,7 @@ import { initNeuralBackground } from "./js/neural-bg.js";
 import "./js/sw-register.js";
 import {
   getProfile,
+  updateProfile,
   setUserRole,
   listUsers,
   getMaintenance,
@@ -123,7 +124,7 @@ import {
   getRolePermissions,
   updateRolePermissions,
 } from "./js/supabase-db.js";
-import { toast, confirmModal, initTheme, toggleTheme, initKeyboardShortcuts, initInactivityTimeout } from "./js/ui.js";
+import { toast, confirmModal, initTheme, toggleTheme, initKeyboardShortcuts, initInactivityTimeout, escapeHtml } from "./js/ui.js";
 
 initNeuralBackground("neural-canvas");
 
@@ -185,12 +186,23 @@ function showAuthMessage(text, type = "info") {
 }
 
 async function checkSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-    state.user = session.user;
-    await loadProfile();
-  } else {
-    window.location.href = "/auth?returnTo=" + encodeURIComponent(window.location.pathname + window.location.search);
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (session) {
+      state.user = session.user;
+      await loadProfile();
+    } else {
+      window.location.href = "/auth?returnTo=" + encodeURIComponent(window.location.pathname + window.location.search);
+    }
+  } catch (err) {
+    console.error("[xSyna] checkSession failed:", err);
+    const appEl = $("app");
+    if (appEl) {
+      appEl.classList.remove("hidden");
+      appEl.style.display = "flex";
+      appEl.innerHTML = `<div style="padding:24px;color:#f87171;text-align:center;">Fehler beim Laden der Sitzung: ${escapeHtml(err.message || err)}<br><a href="/auth" style="color:var(--cyan)">Zurück zum Login</a></div>`;
+    }
   }
 }
 
@@ -207,13 +219,16 @@ function hasPermission(perms) {
 }
 
 async function initApp() {
-  await syncQueue();
-  const maintenance = await getMaintenance();
-  state.maintenance = maintenance;
+  try {
+    await syncQueue();
+    const maintenance = await getMaintenance();
+    state.maintenance = maintenance;
 
-  $("app").style.display = "flex";
-  $("user-email").textContent = state.user?.email || "guest@xsyna.de";
-  $("role-badge").textContent = (state.profile?.role || "user").toUpperCase();
+    const appEl = $("app");
+    appEl.classList.remove("hidden");
+    appEl.style.display = "flex";
+    $("user-email").textContent = state.user?.email || "guest@xsyna.de";
+    $("role-badge").textContent = (state.profile?.role || "user").toUpperCase();
 
   if (maintenance?.enabled) showMaintenance(maintenance);
   else { const ms = $("maintenance-screen"); if (ms) ms.style.display = "none"; }
@@ -243,8 +258,17 @@ async function initApp() {
   });
   initInactivityTimeout(async () => { await supabase.auth.signOut(); window.location.href = "/auth"; }, 30 * 60 * 1000);
 
-  renderSidebar();
-  navigate(currentPage);
+    renderSidebar();
+    navigate(currentPage);
+  } catch (err) {
+    console.error("[xSyna] initApp failed:", err);
+    const appEl = $("app");
+    if (appEl) {
+      appEl.classList.remove("hidden");
+      appEl.style.display = "flex";
+      appEl.innerHTML = `<div style="padding:24px;color:#f87171;text-align:center;">Fehler beim Initialisieren des Panels: ${escapeHtml(err.message || err)}</div>`;
+    }
+  }
 }
 
 function renderSidebar() {
@@ -441,12 +465,30 @@ async function renderBetaAdmin(container) {
 
 async function renderAccount(container) {
   const prefs = await getUserPreferences(state.user?.id);
+  const profile = state.profile || {};
   container.innerHTML = `
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
       <div class="card">
-        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Profil</h3>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">E-Mail: <span style="color: var(--text);">${state.user?.email || "Gast"}</span></p>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">Rolle: <span style="color: var(--cyan); text-transform: uppercase;">${state.profile?.role || "user"}</span></p>
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Profil bearbeiten</h3>
+        <form id="profile-form">
+          <div class="form-group">
+            <label class="form-label">Anzeigename</label>
+            <input type="text" id="profile-fullname" class="input" value="${escapeHtml(profile.full_name || "")}" placeholder="Max Mustermann" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Avatar URL</label>
+            <input type="url" id="profile-avatar" class="input" value="${escapeHtml(profile.avatar_url || "")}" placeholder="https://.../avatar.png" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">E-Mail</label>
+            <input type="email" class="input" value="${escapeHtml(state.user?.email || "")}" disabled />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rolle</label>
+            <input type="text" class="input" value="${(profile.role || "user").toUpperCase()}" disabled />
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Profil speichern</button>
+        </form>
       </div>
       <div class="card">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Sicherheit</h3>
@@ -466,6 +508,21 @@ async function renderAccount(container) {
       </div>
     </div>
   `;
+  $("profile-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const updates = {
+      full_name: $("profile-fullname").value.trim(),
+      avatar_url: $("profile-avatar").value.trim(),
+    };
+    const { data, error } = await updateProfile(state.user.id, updates);
+    if (error) {
+      toast("Fehler: " + error.message, "error");
+    } else {
+      state.profile = { ...state.profile, ...data };
+      toast("Profil gespeichert", "success");
+      renderAccount(container);
+    }
+  });
   $("change-password")?.addEventListener("click", changePassword);
   $("delete-account")?.addEventListener("click", deleteAccountAction);
   $("toggle-theme")?.addEventListener("click", async () => {

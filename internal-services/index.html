@@ -31,7 +31,7 @@
       <div id="maintenance-status" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--cyan);">System wird aktualisiert...</div>
     </div>
 
-    <div id="app" class="hidden" style="display: none; min-height: 100vh;">
+    <div id="app" class="hidden" style="min-height: 100vh;">
       <div class="dashboard">
         <aside class="sidebar">
           <div class="sidebar-header">
@@ -73,10 +73,16 @@
       }
       .hidden { display: none !important; }
       #app { display: flex; }
+      #app.hidden { display: none !important; }
       @media (max-width: 768px) {
         .dashboard { flex-direction: column; }
         .sidebar { width: 100%; }
       }
     </style>
+    <noscript>
+      <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #030508; color: #fff; z-index: 9999; padding: 24px; text-align: center;">
+        <p>JavaScript ist erforderlich, um das xSyna Panel zu nutzen.</p>
+      </div>
+    </noscript>
   </body>
 </html>
