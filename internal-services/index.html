@@ -24,10 +24,11 @@
   <body>
     <div id="neural-canvas"></div>
 
-    <div id="loading-screen" style="position: fixed; inset: 0; z-index: 101; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;">
+    <div id="loading-screen" style="position: fixed; inset: 0; z-index: 101; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; overflow: auto;">
       <div style="width: 56px; height: 56px; border: 2px solid rgba(34,211,238,0.2); border-top-color: var(--cyan); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 24px;"></div>
       <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 8px;">xSyna Panel</h1>
-      <p id="loading-text" style="color: var(--text-secondary); max-width: 480px;">Initialisierung läuft...</p>
+      <p id="loading-text" style="color: var(--text-secondary); max-width: 480px; margin-bottom: 16px;">Initialisierung läuft...</p>
+      <pre id="debug-info" style="display: none; max-width: 90%; background: rgba(0,0,0,0.4); color: var(--cyan); padding: 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.75rem; text-align: left; max-height: 40vh; overflow: auto; word-break: break-word;"></pre>
     </div>
 
     <div id="maintenance-screen" class="hidden" style="position: fixed; inset: 0; z-index: 100; background: var(--bg); flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;">
@@ -106,7 +107,14 @@
       // Fallback: after 10s, if the module never signalled readiness, show recovery options
       setTimeout(function() {
         if (window.__XSYNA_APP_READY) return;
-        console.warn('[xSyna] Fallback: app did not initialize within 10s');
+        console.warn('[xSyna] Fallback: app did not initialize within 10s, step:', window.__XSYNA_INIT_STEP);
+        var debug = document.getElementById('debug-info');
+        if (debug) {
+          debug.style.display = 'block';
+          var line = document.createElement('div');
+          line.textContent = '[FALLBACK] step=' + (window.__XSYNA_INIT_STEP || 'unknown');
+          debug.appendChild(line);
+        }
         var app = document.getElementById('app');
         var content = document.getElementById('page-content');
         if (app && content) {

@@ -160,9 +160,22 @@ function showAuthMessage(text, type = "info") {
   el.style.color = type === "error" ? "#f87171" : type === "success" ? "#22d3ee" : "#94a3b8";
 }
 
+function debugStep(step, detail = "") {
+  window.__XSYNA_INIT_STEP = step;
+  const el = document.getElementById("debug-info");
+  if (!el) return;
+  el.style.display = "block";
+  const line = document.createElement("div");
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${step}${detail ? ": " + detail : ""}`;
+  el.appendChild(line);
+  console.log(`[xSyna debug] ${step}`, detail);
+}
+
+debugStep("module-parsed", "internal.js loaded");
+
 async function checkSession() {
   console.log("[xSyna] checkSession started");
-  window.__XSYNA_INIT_STEP = "checking-session";
+  debugStep("checkSession", "start");
   try {
     const sessionPromise = supabase.auth.getSession();
     const timeoutPromise = new Promise((_, reject) =>
@@ -171,12 +184,12 @@ async function checkSession() {
     const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
     if (error) throw error;
     if (!session || !session.user) {
-      window.__XSYNA_INIT_STEP = "redirecting-to-auth";
+      debugStep("no-session", "redirect to /auth");
       window.location.href = "/auth?returnTo=" + encodeURIComponent(window.location.pathname + window.location.search);
       return;
     }
+    debugStep("session-found", session.user.email);
     state.user = session.user;
-    window.__XSYNA_INIT_STEP = "loading-profile";
     await loadProfile();
   } catch (err) {
     console.error("[xSyna] checkSession failed:", err);
@@ -192,7 +205,9 @@ async function checkSession() {
 
 async function loadProfile() {
   try {
+    debugStep("loadProfile", "user " + state.user.id);
     const profile = await getProfile(state.user.id);
+    debugStep("profile-loaded", profile ? profile.role : "fallback user");
     state.profile = profile || { role: "user", permissions: [] };
     await initApp();
   } catch (err) {
@@ -215,17 +230,20 @@ function hasPermission(perms) {
 
 async function initApp() {
   try {
+    debugStep("initApp", "start");
     await syncQueue();
+    debugStep("syncQueue", "done");
     const maintenance = await getMaintenance();
+    debugStep("maintenance", maintenance?.enabled ? "enabled" : "disabled");
     state.maintenance = maintenance;
 
     const appEl = $("app");
     appEl.classList.remove("hidden");
     appEl.style.display = "flex";
     window.__XSYNA_APP_READY = true;
-    window.__XSYNA_INIT_STEP = "app-ready";
     $("user-email").textContent = state.user?.email || "guest@xsyna.de";
     $("role-badge").textContent = (state.profile?.role || "user").toUpperCase();
+    debugStep("app-ready", state.user?.email);
 
   if (maintenance?.enabled) showMaintenance(maintenance);
   else { const ms = $("maintenance-screen"); if (ms) ms.style.display = "none"; }

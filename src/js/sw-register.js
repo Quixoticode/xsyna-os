@@ -1,5 +1,12 @@
 export function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
+    // Allow bypassing the service worker for debugging by adding ?no-sw=1 to the URL.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("no-sw") === "1") {
+      console.log("[xSyna SW] bypassed via ?no-sw=1");
+      return;
+    }
+
     window.addEventListener("load", () => {
       // Unregister any stale service workers first to avoid stale JS bundles.
       navigator.serviceWorker.getRegistrations().then((registrations) => {
