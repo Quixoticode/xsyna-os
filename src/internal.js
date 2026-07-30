@@ -108,6 +108,8 @@ import { toast, confirmModal, initTheme, toggleTheme, initKeyboardShortcuts, ini
 
 initNeuralBackground("neural-canvas");
 console.log("[xSyna] internal.js loaded, neural bg initialized");
+window.__XSYNA_APP_READY = false;
+window.__XSYNA_INIT_STEP = "module-loaded";
 
 const state = {
   user: null,
@@ -160,17 +162,25 @@ function showAuthMessage(text, type = "info") {
 
 async function checkSession() {
   console.log("[xSyna] checkSession started");
+  window.__XSYNA_INIT_STEP = "checking-session";
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const sessionPromise = supabase.auth.getSession();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("getSession timeout after 5000ms")), 5000)
+    );
+    const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
     if (error) throw error;
     if (!session || !session.user) {
+      window.__XSYNA_INIT_STEP = "redirecting-to-auth";
       window.location.href = "/auth?returnTo=" + encodeURIComponent(window.location.pathname + window.location.search);
       return;
     }
     state.user = session.user;
+    window.__XSYNA_INIT_STEP = "loading-profile";
     await loadProfile();
   } catch (err) {
     console.error("[xSyna] checkSession failed:", err);
+    window.__XSYNA_INIT_STEP = "checkSession-error:" + (err.message || err);
     const appEl = $("app");
     if (appEl) {
       appEl.classList.remove("hidden");
@@ -212,6 +222,8 @@ async function initApp() {
     const appEl = $("app");
     appEl.classList.remove("hidden");
     appEl.style.display = "flex";
+    window.__XSYNA_APP_READY = true;
+    window.__XSYNA_INIT_STEP = "app-ready";
     $("user-email").textContent = state.user?.email || "guest@xsyna.de";
     $("role-badge").textContent = (state.profile?.role || "user").toUpperCase();
 
@@ -1130,7 +1142,18 @@ async function renderAuditLog(container) {
   `;
 }
 
-checkSession();
+try {
+  checkSession();
+} catch (err) {
+  console.error("[xSyna] top-level checkSession error:", err);
+  window.__XSYNA_INIT_STEP = "top-level-error:" + (err.message || err);
+  const appEl = $("app");
+  if (appEl) {
+    appEl.classList.remove("hidden");
+    appEl.style.display = "flex";
+    appEl.innerHTML = `<div style="padding:24px;color:#f87171;text-align:center;">Kritischer Startfehler: ${escapeHtml(err.message || err)}<br><a href="/auth" style="color:var(--cyan)">Zurück zum Login</a></div>`;
+  }
+}
 
 // --- Notifications ---
 

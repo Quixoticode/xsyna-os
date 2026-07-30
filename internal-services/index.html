@@ -24,6 +24,12 @@
   <body>
     <div id="neural-canvas"></div>
 
+    <div id="loading-screen" style="position: fixed; inset: 0; z-index: 101; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;">
+      <div style="width: 56px; height: 56px; border: 2px solid rgba(34,211,238,0.2); border-top-color: var(--cyan); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 24px;"></div>
+      <h1 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 8px;">xSyna Panel</h1>
+      <p id="loading-text" style="color: var(--text-secondary); max-width: 480px;">Initialisierung läuft...</p>
+    </div>
+
     <div id="maintenance-screen" class="hidden" style="position: fixed; inset: 0; z-index: 100; background: var(--bg); flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;">
       <div style="width: 56px; height: 56px; border: 2px solid rgba(34,211,238,0.2); border-top-color: var(--cyan); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 24px;"></div>
       <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">Wartungsmodus</h1>
@@ -69,7 +75,7 @@
       </div>
     </div>
 
-    <script type="module" src="/src/internal.js?v=9"></script>
+    <script type="module" src="/src/internal.js?v=10"></script>
 
     <script>
       // Debug & Fallback: ensure app becomes visible even if JS silently fails
@@ -87,33 +93,49 @@
           });
         }
 
-        // Fallback: if #app is still hidden after 3s, show a user-facing reset option
-        setTimeout(function() {
-          var app = document.getElementById('app');
-          if (app && app.classList.contains('hidden')) {
-            console.warn('[xSyna] Fallback: forcing #app visible after timeout');
-            app.classList.remove('hidden');
-            var content = document.getElementById('page-content');
-            if (content) {
-              content.innerHTML = '<div style="padding:24px;text-align:center;">' +
-                '<p style="color:#f87171; margin-bottom:16px;">Panel konnte nicht initialisiert werden. Der Cache könnte veraltet sein.</p>' +
-                '<button id="xs-clear-cache" style="padding:10px 20px;background:var(--cyan);color:#000;border:none;border-radius:999px;cursor:pointer;font-weight:600;">Cache leeren &amp; neu laden</button>' +
-                '</div>';
-              var btn = document.getElementById('xs-clear-cache');
-              if (btn) {
-                btn.addEventListener('click', function() {
-                  if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(function(regs) {
-                      regs.forEach(function(r) { r.unregister(); });
-                    });
-                  }
-                  localStorage.clear();
-                  window.location.reload(true);
+      // Loading screen: hide as soon as the app becomes visible
+      var loadingCheck = setInterval(function() {
+        var app = document.getElementById('app');
+        var loading = document.getElementById('loading-screen');
+        if (app && !app.classList.contains('hidden') && loading) {
+          loading.style.display = 'none';
+          clearInterval(loadingCheck);
+        }
+      }, 100);
+
+      // Fallback: after 10s, if the module never signalled readiness, show recovery options
+      setTimeout(function() {
+        if (window.__XSYNA_APP_READY) return;
+        console.warn('[xSyna] Fallback: app did not initialize within 10s');
+        var app = document.getElementById('app');
+        var content = document.getElementById('page-content');
+        if (app && content) {
+          app.classList.remove('hidden');
+          app.style.display = 'flex';
+          content.innerHTML = '<div style="padding:24px;text-align:center;">' +
+            '<p style="color:#f87171; margin-bottom:12px;">Panel konnte nicht initialisiert werden.</p>' +
+            '<p id="init-error-detail" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px;">Das JavaScript-Modul hat sich nicht innerhalb von 10 Sekunden gemeldet. Mögliche Ursachen: kein Session-Cookie, Service-Worker-Cache oder Netzwerkfehler.</p>' +
+            '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px;">' +
+            '<button id="xs-clear-cache" style="padding:10px 20px;background:var(--cyan);color:#000;border:none;border-radius:999px;cursor:pointer;font-weight:600;">Cache leeren &amp; neu laden</button>' +
+            '<a href="/auth" style="padding:10px 20px;background:rgba(255,255,255,0.08);color:var(--text);border:1px solid var(--border);border-radius:999px;cursor:pointer;font-weight:600;text-decoration:none;">Zum Login</a>' +
+            '</div>' +
+            '</div>';
+          var loading = document.getElementById('loading-screen');
+          if (loading) loading.style.display = 'none';
+          var btn = document.getElementById('xs-clear-cache');
+          if (btn) {
+            btn.addEventListener('click', function() {
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  regs.forEach(function(r) { r.unregister(); });
                 });
               }
-            }
+              localStorage.clear();
+              window.location.reload(true);
+            });
           }
-        }, 3000);
+        }
+      }, 10000);
       })();
     </script>
 
