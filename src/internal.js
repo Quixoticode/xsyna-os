@@ -177,12 +177,23 @@ async function checkSession() {
   console.log("[xSyna] checkSession started");
   debugStep("checkSession", "start");
   try {
-    const sessionPromise = supabase.auth.getSession();
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("getSession timeout after 5000ms")), 5000)
-    );
-    const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
-    if (error) throw error;
+    // Race getSession against a 3s timeout
+    let session = null;
+    try {
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 3000)
+      );
+      const result = await Promise.race([sessionPromise, timeoutPromise]);
+      session = result?.data?.session;
+      if (result?.error) {
+        console.error("[xSyna] getSession error:", result.error);
+      }
+    } catch (raceErr) {
+      console.warn("[xSyna] getSession race failed:", raceErr.message);
+      // Timed out or failed - redirect to auth as fallback
+    }
+
     if (!session || !session.user) {
       debugStep("no-session", "redirect to /auth");
       window.location.href = "/auth?returnTo=" + encodeURIComponent(window.location.pathname + window.location.search);
@@ -193,13 +204,19 @@ async function checkSession() {
     await loadProfile();
   } catch (err) {
     console.error("[xSyna] checkSession failed:", err);
-    window.__XSYNA_INIT_STEP = "checkSession-error:" + (err.message || err);
-    const appEl = $("app");
+    debugStep("checkSession-error", err.message || err);
+    // Show error with retry option
+    var appEl = $("app");
     if (appEl) {
       appEl.classList.remove("hidden");
       appEl.style.display = "flex";
-      appEl.innerHTML = `<div style="padding:24px;color:#f87171;text-align:center;">Fehler beim Laden der Sitzung: ${escapeHtml(err.message || err)}<br><a href="/auth" style="color:var(--cyan)">Zurück zum Login</a></div>`;
+      appEl.innerHTML = '<div style="padding:24px;color:#f87171;text-align:center;">' +
+        '<p>Fehler beim Laden der Sitzung: ' + escapeHtml(err.message || err) + '</p>' +
+        '<button onclick="location.reload()" style="margin-top:12px;padding:10px 20px;background:var(--cyan);color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Neu laden</button>' +
+        '<br><a href="/auth" style="display:inline-block;margin-top:8px;color:var(--cyan);">Zum Login</a>' +
+        '</div>';
     }
+    window.__XSYNA_APP_READY = true;
   }
 }
 

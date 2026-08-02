@@ -109,14 +109,20 @@ export async function redirectAfterAuth() {
 
 async function checkSession() {
   try {
+    // Quick check: are we already signed in?
     const { data: { session } } = await supabase.auth.getSession();
-    console.log("[auth] session check", { hasSession: !!session });
+    console.log("[auth] session check", { hasSession: !!session, email: session?.user?.email });
     if (session) {
       redirectAfterAuth();
+      return;
     }
   } catch (e) {
     console.error("[auth] session check failed", e);
+    showMessage("Session-Check fehlgeschlagen. Bitte manuell einloggen.", "error");
   }
+  // Hide any loading state
+  var loginBtn = $("login-button");
+  if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = "Anmelden / Magic-Link senden"; }
 }
 
 checkSession();

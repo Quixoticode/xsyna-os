@@ -1,4 +1,4 @@
-const CACHE_NAME = "xsyna-v9";
+const CACHE_NAME = "xsyna-v10";
 const OFFLINE_URLS = [
   "/",
   "/index.html",
@@ -26,6 +26,7 @@ const OFFLINE_URLS = [
   "/src/js/sw-register.js",
   "/xyna-logo.svg",
   "/xsyn-icon.svg",
+  "/synai-icon.svg",
   "/xs-labs-icon.svg",
   "/manifest.webmanifest",
 ];

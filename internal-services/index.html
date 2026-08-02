@@ -16,7 +16,7 @@
     {
       "imports": {
         "three": "https://esm.sh/three@0.185.1",
-        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.110.9"
+        "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
       }
     }
     </script>
@@ -76,75 +76,84 @@
       </div>
     </div>
 
-    <script type="module" src="/src/internal.js?v=10"></script>
+    <script type="module" src="/src/internal.js?v=11"></script>
 
     <script>
-      // Debug & Fallback: ensure app becomes visible even if JS silently fails
       (function() {
-        var start = performance.now();
-        console.log('[xSyna] internal-services page parsed at', new Date().toISOString());
+      console.log('[xSyna] page parsed at', new Date().toISOString());
+      window.__XSYNA_APP_READY = false;
+      window.__XSYNA_INIT_STEP = 'html-parsed';
 
-        // Force service worker update to clear stale caches
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            registrations.forEach(function(registration) {
-              registration.update();
-              console.log('[xSyna] SW update requested:', registration.scope);
-            });
-          });
+      // Live status polling
+      var poll = setInterval(function() {
+        if (window.__XSYNA_APP_READY) {
+          clearInterval(poll);
+          var ls = document.getElementById('loading-screen');
+          if (ls) ls.style.display = 'none';
+          return;
         }
-
-      // Loading screen: hide as soon as the app becomes visible
-      var loadingCheck = setInterval(function() {
-        var app = document.getElementById('app');
-        var loading = document.getElementById('loading-screen');
-        if (app && !app.classList.contains('hidden') && loading) {
-          loading.style.display = 'none';
-          clearInterval(loadingCheck);
+        var lt = document.getElementById('loading-text');
+        var step = window.__XSYNA_INIT_STEP || 'lade...';
+        var msgs = {
+          'html-parsed': 'Seite geladen, warte auf JS-Modul...',
+          'module-parsed': 'Modul geladen, initialisiere...',
+          'checkSession': 'Prüfe Sitzung...',
+          'session-found': 'Sitzung gefunden, lade Profil...',
+          'no-session': 'Nicht angemeldet, leite weiter...',
+          'loadProfile': 'Profil wird geladen...',
+          'profile-loaded': 'Profil geladen, starte Panel...',
+          'initApp': 'Panel wird aufgebaut...',
+          'app-ready': 'Bereit!'
+        };
+        if (lt && msgs[step]) lt.textContent = msgs[step];
+        var di = document.getElementById('debug-info');
+        if (di && step !== 'html-parsed') {
+          di.style.display = 'block';
+          di.textContent = 'Status: ' + step;
         }
-      }, 100);
+      }, 300);
 
-      // Fallback: after 10s, if the module never signalled readiness, show recovery options
+      // Skip button after 5s
       setTimeout(function() {
         if (window.__XSYNA_APP_READY) return;
-        console.warn('[xSyna] Fallback: app did not initialize within 10s, step:', window.__XSYNA_INIT_STEP);
-        var debug = document.getElementById('debug-info');
-        if (debug) {
-          debug.style.display = 'block';
-          var line = document.createElement('div');
-          line.textContent = '[FALLBACK] step=' + (window.__XSYNA_INIT_STEP || 'unknown');
-          debug.appendChild(line);
-        }
+        var ls = document.getElementById('loading-screen');
+        if (!ls) return;
+        var btn = document.createElement('button');
+        btn.textContent = 'Erzwingen (überspringen)';
+        btn.style.cssText = 'margin-top:20px;padding:10px 24px;background:var(--amber);color:#000;border:none;border-radius:999px;cursor:pointer;font-weight:700;font-size:0.85rem;';
+        btn.onclick = function() {
+          window.__XSYNA_APP_READY = true;
+          clearInterval(poll);
+          var app = document.getElementById('app');
+          if (app) { app.classList.remove('hidden'); app.style.display = 'flex'; }
+          if (ls) ls.style.display = 'none';
+        };
+        ls.appendChild(btn);
+      }, 5000);
+
+      // Hard fallback after 12s
+      setTimeout(function() {
+        if (window.__XSYNA_APP_READY) return;
+        clearInterval(poll);
+        var ls = document.getElementById('loading-screen');
+        if (ls) ls.style.display = 'none';
         var app = document.getElementById('app');
         var content = document.getElementById('page-content');
         if (app && content) {
           app.classList.remove('hidden');
           app.style.display = 'flex';
-          content.innerHTML = '<div style="padding:24px;text-align:center;">' +
-            '<p style="color:#f87171; margin-bottom:12px;">Panel konnte nicht initialisiert werden.</p>' +
-            '<p id="init-error-detail" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px;">Das JavaScript-Modul hat sich nicht innerhalb von 10 Sekunden gemeldet. Mögliche Ursachen: kein Session-Cookie, Service-Worker-Cache oder Netzwerkfehler.</p>' +
+          content.innerHTML = '<div style="padding:32px;text-align:center;">' +
+            '<p style="color:#f87171;margin-bottom:8px;font-size:1.1rem;">Panel konnte nicht geladen werden.</p>' +
+            '<p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px;">Schritt: ' + (window.__XSYNA_INIT_STEP || 'unknown') + '</p>' +
+            '<p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:20px;">Prüfe die Browser-Konsole (F12) auf Fehler.</p>' +
             '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px;">' +
-            '<button id="xs-clear-cache" style="padding:10px 20px;background:var(--cyan);color:#000;border:none;border-radius:999px;cursor:pointer;font-weight:600;">Cache leeren &amp; neu laden</button>' +
-            '<a href="/auth" style="padding:10px 20px;background:rgba(255,255,255,0.08);color:var(--text);border:1px solid var(--border);border-radius:999px;cursor:pointer;font-weight:600;text-decoration:none;">Zum Login</a>' +
-            '</div>' +
-            '</div>';
-          var loading = document.getElementById('loading-screen');
-          if (loading) loading.style.display = 'none';
-          var btn = document.getElementById('xs-clear-cache');
-          if (btn) {
-            btn.addEventListener('click', function() {
-              if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(regs) {
-                  regs.forEach(function(r) { r.unregister(); });
-                });
-              }
-              localStorage.clear();
-              window.location.reload(true);
-            });
-          }
+            '<button onclick="location.reload(true)" style="padding:10px 20px;background:var(--cyan);color:#000;border:none;border-radius:999px;cursor:pointer;font-weight:600;">Neu laden</button>' +
+            '<a href="/auth" style="padding:10px 20px;background:rgba(255,255,255,0.08);color:var(--text);border:1px solid var(--border);border-radius:999px;text-decoration:none;font-weight:600;">Zum Login</a>' +
+            '</div></div>';
         }
-      }, 10000);
+      }, 12000);
       })();
+    </script>
     </script>
 
     <style>

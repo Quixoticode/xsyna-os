@@ -20,7 +20,11 @@ window.addEventListener("load", reveal);
 reveal();
 
 async function renderNewsAndJobs() {
-  const [{ data: announcements }, { data: jobs }] = await Promise.all([getAnnouncements(), getJobs()]);
+  try {
+    const [{ data: announcements }, { data: jobs }] = await Promise.all([
+      getAnnouncements().catch(() => ({ data: null })),
+      getJobs().catch(() => ({ data: null }))
+    ]);
 
   const newsContainer = document.querySelector("#news .news-grid");
   if (newsContainer && announcements?.length) {
@@ -50,6 +54,9 @@ async function renderNewsAndJobs() {
       wrapper.innerHTML = jobsHtml;
       jobsContainer.querySelector(".section-header-center").appendChild(wrapper);
     }
+  }
+  } catch(e) {
+    console.error("[xSyna] renderNewsAndJobs failed:", e);
   }
 }
 
