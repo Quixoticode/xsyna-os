@@ -140,7 +140,7 @@ const pages = {
   chat: { title: "Chat", icon: chatIcon, render: renderChat },
   docs: { title: "Docs", icon: docsIcon, render: renderDocsEditor, requires: ["admin", "moderator"] },
   game: { title: "xSyna Game", icon: gameIcon, render: renderGame },
-  teams: { title: "Teams", icon: usersIcon, render: renderTeams },
+  teams: { title: "Teams", icon: usersIcon, render: renderTeams, requires: ["admin"] },
   invites: { title: "Invite Codes", icon: adminIcon, render: renderInviteCodes, requires: ["admin"] },
 };
 
@@ -1474,4 +1474,77 @@ function bellIcon() {
 
 function keyIcon() {
   return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3-1.5 1.5Z"/></svg>`;
+}
+
+// --- Missing stub functions ---
+
+async function renderTeams(container) {
+  container.innerHTML = `
+    <div class="card" style="text-align: center; padding: 48px;">
+      <h3 style="color: var(--cyan); margin-bottom: 8px;">Teams</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 16px;">Team-Verwaltung ist in Entwicklung.</p>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Bald kannst du hier Teams erstellen und Mitglieder einladen.</p>
+    </div>
+  `;
+}
+
+async function renderInviteCodes(container) {
+  container.innerHTML = `
+    <div class="card" style="text-align: center; padding: 48px;">
+      <h3 style="color: var(--cyan); margin-bottom: 8px;">Invite Codes</h3>
+      <p style="color: var(--text-secondary); margin-bottom: 16px;">Einladungs-Codes sind in Entwicklung.</p>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Bald kannst du hier Einladungscodes erstellen und verwalten.</p>
+    </div>
+  `;
+}
+
+async function registerPasskeyAction() {
+  try {
+    if (typeof supabase.auth.startPasskeyRegistration === "function") {
+      const { error } = await supabase.auth.startPasskeyRegistration();
+      if (error) throw error;
+      toast("Passkey-Registrierung gestartet. Folge den Browser-Anweisungen.", "success");
+    } else {
+      toast("Passkey wird von diesem Setup noch nicht unterstützt.", "error");
+    }
+  } catch (e) {
+    toast("Passkey-Fehler: " + (e.message || e), "error");
+  }
+}
+
+async function linkProvider(provider) {
+  try {
+    if (typeof supabase.auth.linkIdentity === "function") {
+      const { error } = await supabase.auth.linkIdentity({
+        provider,
+        options: { redirectTo: window.location.origin + "/internal-services" },
+      });
+      if (error) throw error;
+    } else {
+      toast("Provider-Verknüpfung wird von diesem Setup noch nicht unterstützt.", "error");
+    }
+  } catch (e) {
+    toast("SSO-Fehler: " + (e.message || e), "error");
+  }
+}
+
+async function renderIdentities() {
+  const container = document.getElementById("linked-identities");
+  if (!container) return;
+  try {
+    if (typeof supabase.auth.getUserIdentities === "function") {
+      const { data } = await supabase.auth.getUserIdentities();
+      if (data?.identities?.length) {
+        container.innerHTML = data.identities.map(i =>
+          `<div style="font-size: 0.85rem; color: var(--cyan);">${i.provider} (${i.identity_data?.email || "verknüpft"})</div>`
+        ).join("");
+      } else {
+        container.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-muted);">Keine Konten verknüpft.</div>';
+      }
+    } else {
+      container.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-muted);">Identitäten-Abfrage nicht verfügbar.</div>';
+    }
+  } catch (e) {
+    container.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-muted);">Fehler beim Laden.</div>';
+  }
 }
