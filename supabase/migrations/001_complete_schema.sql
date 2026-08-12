@@ -4,6 +4,9 @@
 -- Drop all existing public tables to start fresh.
 -- ============================================================
 
+-- Ensure gen_random_uuid() is available for default UUIDs
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Drop existing tables in reverse dependency order
 DROP TABLE IF EXISTS public.audit_log CASCADE;
 DROP TABLE IF EXISTS public.webhook_logs CASCADE;
@@ -68,6 +71,45 @@ CREATE TABLE public.profiles (
   updated_at  TIMESTAMPTZ DEFAULT now()
 );
 
+-- SECURITY DEFINER helper functions. RLS policies must NOT query
+-- public.profiles directly inside their own USING/WITH CHECK expression,
+-- otherwise PostgreSQL raises "infinite recursion detected in policy for
+-- relation profiles". These functions run as the owner (postgres), which
+-- bypasses RLS, so they are safe to use inside policies.
+CREATE OR REPLACE FUNCTION public.has_profile()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid());
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_staff()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'moderator')
+  );
+$$;
+
 -- RLS for profiles: a user can read/update their own row.
 -- Admins can read ALL rows. We avoid recursion by checking the
 -- current user's role from the profile being selected, but never
@@ -81,7 +123,7 @@ CREATE POLICY profiles_select_own ON public.profiles
 -- Admins can read all profiles (no recursion: we check the row's role directly)
 CREATE POLICY profiles_select_admin ON public.profiles
   FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+    public.is_admin()
   );
 
 -- Users can update their own profile (but not role, unless admin)
@@ -92,18 +134,41 @@ CREATE POLICY profiles_update_own ON public.profiles
 -- Admins can update any profile
 CREATE POLICY profiles_update_admin ON public.profiles
   FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+    public.is_admin()
   );
 
 -- Only admins can delete
 CREATE POLICY profiles_delete_admin ON public.profiles
   FOR DELETE USING (
-    EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+    public.is_admin()
   );
 
--- Allow service_role to insert (for triggers/auth hook)
+-- Allow a user to insert their own profile (the auth trigger inserts via
+-- SECURITY DEFINER, which bypasses RLS anyway).
 CREATE POLICY profiles_insert_service ON public.profiles
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (id = auth.uid());
+
+-- Prevent privilege escalation: a non-admin must not be able to change their
+-- own (or anyone's) role via a direct UPDATE. RLS is row-level and cannot
+-- restrict single columns, so this trigger enforces the role invariant.
+CREATE OR REPLACE FUNCTION public.protect_profile_role()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role AND NOT public.is_admin() THEN
+    NEW.role := OLD.role;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_profile_role ON public.profiles;
+CREATE TRIGGER protect_profile_role
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profile_role();
 
 -- Auto-create profile on sign-up.
 -- The VERY FIRST user to sign up becomes the superuser/admin.
@@ -146,7 +211,7 @@ CREATE TABLE public.site_config (
 ALTER TABLE public.site_config ENABLE ROW LEVEL SECURITY;
 CREATE POLICY site_config_select ON public.site_config FOR SELECT USING (true);
 CREATE POLICY site_config_admin ON public.site_config FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.maintenance_mode (
@@ -160,7 +225,7 @@ CREATE TABLE public.maintenance_mode (
 ALTER TABLE public.maintenance_mode ENABLE ROW LEVEL SECURITY;
 CREATE POLICY maint_select ON public.maintenance_mode FOR SELECT USING (true);
 CREATE POLICY maint_admin ON public.maintenance_mode FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 -- Insert default maintenance row
@@ -186,7 +251,7 @@ CREATE TABLE public.announcements (
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 CREATE POLICY announcements_select ON public.announcements FOR SELECT USING (active = true);
 CREATE POLICY announcements_admin ON public.announcements FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.jobs (
@@ -204,7 +269,7 @@ CREATE TABLE public.jobs (
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY jobs_select ON public.jobs FOR SELECT USING (active = true);
 CREATE POLICY jobs_admin ON public.jobs FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 
@@ -229,7 +294,7 @@ CREATE TABLE public.orders (
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 CREATE POLICY orders_select_public ON public.orders FOR SELECT USING (true);
 CREATE POLICY orders_admin ON public.orders FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  public.is_staff()
 );
 
 CREATE TABLE public.order_updates (
@@ -244,7 +309,7 @@ CREATE TABLE public.order_updates (
 ALTER TABLE public.order_updates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY order_updates_select ON public.order_updates FOR SELECT USING (true);
 CREATE POLICY order_updates_admin ON public.order_updates FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  public.is_staff()
 );
 
 
@@ -265,7 +330,7 @@ ALTER TABLE public.beta_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY beta_select_own ON public.beta_requests FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY beta_insert_own ON public.beta_requests FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY beta_admin ON public.beta_requests FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  public.is_staff()
 );
 
 CREATE TABLE public.tickets (
@@ -281,7 +346,7 @@ ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tickets_select_own ON public.tickets FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY tickets_insert_own ON public.tickets FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY tickets_admin ON public.tickets FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  public.is_staff()
 );
 
 CREATE TABLE public.ticket_messages (
@@ -295,7 +360,7 @@ CREATE TABLE public.ticket_messages (
 ALTER TABLE public.ticket_messages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY ticket_msg_select ON public.ticket_messages FOR SELECT USING (
   ticket_id IN (SELECT id FROM public.tickets WHERE user_id = auth.uid())
-  OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  OR public.is_staff()
 );
 CREATE POLICY ticket_msg_insert ON public.ticket_messages FOR INSERT WITH CHECK (true);
 
@@ -317,10 +382,10 @@ CREATE TABLE public.crm_contacts (
 );
 ALTER TABLE public.crm_contacts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY crm_select ON public.crm_contacts FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid())
+  public.has_profile()
 );
 CREATE POLICY crm_write ON public.crm_contacts FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  public.is_staff()
 );
 
 CREATE TABLE public.time_entries (
@@ -337,7 +402,7 @@ ALTER TABLE public.time_entries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY time_select_own ON public.time_entries FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY time_insert_own ON public.time_entries FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY time_admin ON public.time_entries FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.chat_messages (
@@ -349,7 +414,7 @@ CREATE TABLE public.chat_messages (
 );
 ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY chat_select ON public.chat_messages FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid())
+  public.has_profile()
 );
 CREATE POLICY chat_insert ON public.chat_messages FOR INSERT WITH CHECK (user_id = auth.uid());
 
@@ -365,7 +430,7 @@ CREATE TABLE public.docs (
 ALTER TABLE public.docs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY docs_select ON public.docs FOR SELECT USING (true);
 CREATE POLICY docs_write ON public.docs FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  public.is_staff()
 );
 
 
@@ -384,8 +449,8 @@ CREATE TABLE public.notifications (
 );
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY notif_own ON public.notifications FOR ALL USING (user_id = auth.uid());
-CREATE POLICY notif_admin_insert ON public.notifications FOR INSERT USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+CREATE POLICY notif_admin_insert ON public.notifications FOR INSERT WITH CHECK (
+  public.is_admin()
 );
 
 CREATE TABLE public.api_keys (
@@ -415,7 +480,7 @@ CREATE TABLE public.web_apps (
 ALTER TABLE public.web_apps ENABLE ROW LEVEL SECURITY;
 CREATE POLICY webapps_select ON public.web_apps FOR SELECT USING (active = true);
 CREATE POLICY webapps_admin ON public.web_apps FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.web_app_grants (
@@ -428,7 +493,7 @@ CREATE TABLE public.web_app_grants (
 ALTER TABLE public.web_app_grants ENABLE ROW LEVEL SECURITY;
 CREATE POLICY grants_own ON public.web_app_grants FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY grants_admin ON public.web_app_grants FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 
@@ -458,7 +523,7 @@ CREATE TABLE public.invite_codes (
 ALTER TABLE public.invite_codes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY invite_select ON public.invite_codes FOR SELECT USING (true);
 CREATE POLICY invite_admin ON public.invite_codes FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.waitlist (
@@ -471,7 +536,7 @@ CREATE TABLE public.waitlist (
 ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
 CREATE POLICY waitlist_insert ON public.waitlist FOR INSERT WITH CHECK (true);
 CREATE POLICY waitlist_admin ON public.waitlist FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.feedback (
@@ -487,7 +552,7 @@ ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 CREATE POLICY feedback_insert ON public.feedback FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY feedback_own ON public.feedback FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY feedback_admin ON public.feedback FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.applications (
@@ -504,7 +569,7 @@ ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY app_insert ON public.applications FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY app_own ON public.applications FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY app_admin ON public.applications FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  public.is_staff()
 );
 
 
@@ -541,7 +606,7 @@ CREATE TABLE public.newsletter_subscribers (
 ALTER TABLE public.newsletter_subscribers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY newsletter_insert ON public.newsletter_subscribers FOR INSERT WITH CHECK (true);
 CREATE POLICY newsletter_admin ON public.newsletter_subscribers FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.feature_flags (
@@ -554,7 +619,7 @@ CREATE TABLE public.feature_flags (
 ALTER TABLE public.feature_flags ENABLE ROW LEVEL SECURITY;
 CREATE POLICY flags_select ON public.feature_flags FOR SELECT USING (true);
 CREATE POLICY flags_admin ON public.feature_flags FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.role_permissions (
@@ -566,7 +631,7 @@ CREATE TABLE public.role_permissions (
 ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY roleperm_select ON public.role_permissions FOR SELECT USING (true);
 CREATE POLICY roleperm_admin ON public.role_permissions FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 CREATE TABLE public.system_health (
@@ -580,7 +645,7 @@ CREATE TABLE public.system_health (
 ALTER TABLE public.system_health ENABLE ROW LEVEL SECURITY;
 CREATE POLICY health_select ON public.system_health FOR SELECT USING (true);
 CREATE POLICY health_write ON public.system_health FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid())
+  public.has_profile()
 );
 
 CREATE TABLE public.audit_log (
@@ -594,7 +659,7 @@ CREATE TABLE public.audit_log (
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY audit_insert ON public.audit_log FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY audit_select ON public.audit_log FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('admin', 'moderator'))
+  public.is_staff()
 );
 
 -- ============================================================
@@ -613,7 +678,7 @@ CREATE TABLE public.maintenance_schedule (
 ALTER TABLE public.maintenance_schedule ENABLE ROW LEVEL SECURITY;
 CREATE POLICY maint_sched_select ON public.maintenance_schedule FOR SELECT USING (true);
 CREATE POLICY maint_sched_admin ON public.maintenance_schedule FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 
@@ -657,7 +722,7 @@ CREATE TABLE public.referrals (
 ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
 CREATE POLICY ref_own ON public.referrals FOR ALL USING (referrer_id = auth.uid());
 CREATE POLICY ref_admin ON public.referrals FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  public.is_admin()
 );
 
 
