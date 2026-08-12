@@ -1,5 +1,6 @@
 import { supabase } from "./js/supabase.js";
 import "./js/sw-register.js";
+import "./js/api-assets.js";
 
 const $ = (id) => document.getElementById(id);
 

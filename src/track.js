@@ -1,5 +1,6 @@
 import { initNeuralBackground } from "./js/neural-bg.js";
 import "./js/sw-register.js";
+import "./js/api-assets.js";
 import { decryptTrackingData, getOrder, getOrderUpdates, getSiteConfig } from "./js/supabase-db.js";
 
 initNeuralBackground("neural-canvas");

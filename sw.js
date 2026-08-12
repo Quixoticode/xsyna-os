@@ -1,4 +1,4 @@
-const CACHE_NAME = "xsyna-v13";
+const CACHE_NAME = "xsyna-v14";
 const OFFLINE_URLS = [
   "/",
   "/index.html",
@@ -26,6 +26,7 @@ const OFFLINE_URLS = [
   "/src/js/supabase-db.js",
   "/src/js/neural-bg.js",
   "/src/js/sw-register.js",
+  "/src/js/api-assets.js",
   "/xyna-logo.svg",
   "/xsyn-icon.svg",
   "/synai-icon.svg",
@@ -76,6 +77,7 @@ function isExternal(url) {
   if (url.host.includes("esm.sh")) return true;
   if (url.host.includes("googleapis.com")) return true;
   if (url.host.includes("gstatic.com")) return true;
+  if (url.host.includes("api.xsyna.de")) return true;
   return false;
 }
 

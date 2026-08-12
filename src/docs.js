@@ -1,5 +1,6 @@
 import { initNeuralBackground } from "./js/neural-bg.js";
 import "./js/sw-register.js";
+import "./js/api-assets.js";
 
 initNeuralBackground("neural-canvas");
 

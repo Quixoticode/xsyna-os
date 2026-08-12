@@ -105,15 +105,25 @@ CREATE POLICY profiles_delete_admin ON public.profiles
 CREATE POLICY profiles_insert_service ON public.profiles
   FOR INSERT WITH CHECK (true);
 
--- Auto-create profile on sign-up
+-- Auto-create profile on sign-up.
+-- The VERY FIRST user to sign up becomes the superuser/admin.
+-- All subsequent users default to 'user'.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = ''
 AS $$
+DECLARE
+  v_count int;
 BEGIN
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (NEW.id, NEW.email, 'user');
+  SELECT count(*) INTO v_count FROM public.profiles;
+  IF v_count = 0 THEN
+    INSERT INTO public.profiles (id, email, role)
+    VALUES (NEW.id, NEW.email, 'admin');
+  ELSE
+    INSERT INTO public.profiles (id, email, role)
+    VALUES (NEW.id, NEW.email, 'user');
+  END IF;
   RETURN NEW;
 END;
 $$;

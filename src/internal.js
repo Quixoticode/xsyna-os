@@ -1,6 +1,7 @@
 import { supabase } from "./js/supabase.js";
 import { initNeuralBackground } from "./js/neural-bg.js";
 import "./js/sw-register.js";
+import "./js/api-assets.js";
 import {
   getProfile,
   updateProfile,
