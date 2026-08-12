@@ -1,4 +1,4 @@
-const CACHE_NAME = "xsyna-v12";
+const CACHE_NAME = "xsyna-v13";
 const OFFLINE_URLS = [
   "/",
   "/index.html",
@@ -12,6 +12,8 @@ const OFFLINE_URLS = [
   "/track/index.html",
   "/games/",
   "/games/index.html",
+  "/news/",
+  "/news/index.html",
   "/src/index.css",
   "/src/main.js",
   "/src/docs.js",
@@ -107,6 +109,12 @@ self.addEventListener("fetch", (event) => {
           }
           if (url.pathname.startsWith("/auth")) {
             return caches.match("/auth/index.html");
+          }
+          if (url.pathname.startsWith("/games")) {
+            return caches.match("/games/index.html");
+          }
+          if (url.pathname.startsWith("/news")) {
+            return caches.match("/news/index.html");
           }
           if (url.pathname.startsWith("/track")) {
             return caches.match("/track/index.html");

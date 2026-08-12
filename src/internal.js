@@ -142,6 +142,8 @@ const pages = {
   game: { title: "xSyna Game", icon: gameIcon, render: renderGame },
   teams: { title: "Teams", icon: usersIcon, render: renderTeams, requires: ["admin"] },
   invites: { title: "Invite Codes", icon: adminIcon, render: renderInviteCodes, requires: ["admin"] },
+  site_editor: { title: "Site-Editor", icon: docsIcon, render: renderSiteEditor, requires: ["admin"] },
+  webapps_admin: { title: "WebApps Manager", icon: docsIcon, render: renderWebAppsAdmin, requires: ["admin"] },
 };
 
 let currentPage = "dashboard";
@@ -1548,3 +1550,157 @@ async function renderIdentities() {
     container.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-muted);">Fehler beim Laden.</div>';
   }
 }
+
+
+// ===== SITE EDITOR (Landingpage-Inhalte verwalten) =====
+
+async function renderSiteEditor(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: config } = await getSiteConfig();
+  const sc = config || {};
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Landingpage-Inhalte bearbeiten</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px;">
+        Diese Einstellungen steuern Texte auf der Landingpage. Änderungen sind sofort live.
+      </p>
+      <form id="site-editor-form">
+        <div class="form-group">
+          <label class="form-label">Hero-Überschrift (Zeile 1)</label>
+          <input type="text" id="se-hero-line1" class="input" value="${escapeHtml(sc.hero_line1 || 'Digitale Intelligenz,')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Hero-Überschrift (Zeile 2 - Gradient)</label>
+          <input type="text" id="se-hero-line2" class="input" value="${escapeHtml(sc.hero_line2 || 'geboren aus der Natur.')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Hero-Beschreibung</label>
+          <textarea id="se-hero-desc" class="input" rows="3">${escapeHtml(sc.hero_description || 'xSyna baut ein Ökosystem neuronaler, lokaler KI-Systeme.')}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Badge-Text (Version)</label>
+          <input type="text" id="se-badge" class="input" value="${escapeHtml(sc.badge_text || 'Synaptic Architecture v0.1')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Logo-URL (SVG/PNG)</label>
+          <input type="text" id="se-logo-url" class="input" value="${escapeHtml(sc.logo_url || '')}" placeholder="https://.../logo.svg (leer lassen für Default-SVG)" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Discord-Einladungslink</label>
+          <input type="text" id="se-discord" class="input" value="${escapeHtml(sc.discord_url || 'https://discord.gg/xsyna')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Footer-Text (Copyright)</label>
+          <input type="text" id="se-footer-text" class="input" value="${escapeHtml(sc.footer_text || 'Neuromorphic Intelligence © 2026 Jake Ruck.')}" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">Vorschau</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px;">So sieht die Landingpage aktuell aus (Seite neu laden für volle Vorschau).</p>
+      <div style="background: var(--bg-elevated); padding: 24px; border-radius: var(--radius); text-align: center;">
+        <div style="font-size: 0.75rem; color: var(--lime); margin-bottom: 8px;">${escapeHtml(sc.badge_text || 'Synaptic Architecture v0.1')}</div>
+        <h2 style="font-size: 2rem; font-weight: 700;">${escapeHtml(sc.hero_line1 || 'Digitale Intelligenz,')}</h2>
+        <h2 style="font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, var(--lime), var(--lime)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${escapeHtml(sc.hero_line2 || 'geboren aus der Natur.')}</h2>
+        <p style="color: var(--text-secondary); margin-top: 12px; max-width: 500px; margin-left: auto; margin-right: auto;">${escapeHtml(sc.hero_description || 'xSyna baut ein Ökosystem neuronaler, lokaler KI-Systeme.')}</p>
+      </div>
+    </div>
+  `;
+
+  $("site-editor-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const updates = {
+      hero_line1: $("se-hero-line1").value.trim(),
+      hero_line2: $("se-hero-line2").value.trim(),
+      hero_description: $("se-hero-desc").value.trim(),
+      badge_text: $("se-badge").value.trim(),
+      logo_url: $("se-logo-url").value.trim(),
+      discord_url: $("se-discord").value.trim(),
+      footer_text: $("se-footer-text").value.trim(),
+    };
+    const { error } = await setSiteConfig(updates);
+    if (error) {
+      showAuthMessage("Fehler: " + error.message, "error");
+    } else {
+      showAuthMessage("Site-Inhalte gespeichert! Landingpage neu laden für Änderungen.", "success");
+    }
+  });
+}
+
+
+// ===== WEB APPS ADMIN (Externe Apps verwalten) =====
+
+async function renderWebAppsAdmin(container) {
+  if (!isAdmin(state.profile)) { container.innerHTML = "<p style='color:#f87171'>Zugriff verweigert.</p>"; return; }
+  const { data: apps, error } = await getAllWebApps();
+  if (error && error.message !== 'Request failed') {
+    container.innerHTML = `<p style='color:#f87171'>Fehler: ${error.message}</p>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Neue WebApp / Externen Link hinzufügen</h3>
+      <form id="webapp-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end;">
+        <div class="form-group" style="margin: 0;"><input type="text" id="wa-name" class="input" placeholder="App-Name" required /></div>
+        <div class="form-group" style="margin: 0;"><input type="url" id="wa-url" class="input" placeholder="https://..." required /></div>
+        <div class="form-group" style="margin: 0;"><input type="text" id="wa-slug" class="input" placeholder="slug (z.B. my-app)" required /></div>
+        <div class="form-group" style="margin: 0;"><input type="text" id="wa-icon" class="input" placeholder="Icon-URL (optional)" /></div>
+        <div class="form-group" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+          <label style="font-size: 0.8rem;"><input type="checkbox" id="wa-public" checked /> Öffentlich</label>
+          <label style="font-size: 0.8rem;"><input type="checkbox" id="wa-approved" checked /> Genehmigt</label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="height: fit-content;">Hinzufügen</button>
+      </form>
+    </div>
+    <div class="card" style="overflow: hidden;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">Verwaltete WebApps</h3>
+      <table class="table">
+        <thead><tr><th>Name</th><th>URL</th><th>Slug</th><th>Öffentlich</th><th>Aktionen</th></tr></thead>
+        <tbody>${(apps || []).map(a => `
+          <tr>
+            <td>${a.name}</td>
+            <td><a href="${a.url}" target="_blank" rel="noopener" style="color: var(--lime);">${a.url}</a></td>
+            <td><code style="font-family: var(--font-mono); font-size: 0.8rem;">${a.slug}</code></td>
+            <td>${a.public ? '✓' : '✗'}</td>
+            <td>
+              <button class="btn btn-secondary btn-sm toggle-app" data-id="${a.id}" data-public="${a.public}">${a.public ? 'Verstecken' : 'Öffentlich'}</button>
+            </td>
+          </tr>
+        `).join("") || '<tr><td colspan="5" style="color: var(--text-muted);">Keine WebApps vorhanden.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+
+  $("webapp-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = {
+      name: $("wa-name").value.trim(),
+      url: $("wa-url").value.trim(),
+      slug: $("wa-slug").value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+      icon_url: $("wa-icon").value.trim() || null,
+      public: $("wa-public").checked,
+      approved: $("wa-approved").checked,
+      owner_id: state.user.id,
+    };
+    const { error } = await createWebApp(payload);
+    if (error) {
+      showAuthMessage("Fehler: " + error.message, "error");
+    } else {
+      showAuthMessage("WebApp hinzugefügt!", "success");
+      renderWebAppsAdmin(container);
+    }
+  });
+
+  container.querySelectorAll(".toggle-app").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      const isPublic = btn.dataset.public === 'true';
+      await updateWebApp(id, { public: !isPublic });
+      renderWebAppsAdmin(container);
+    });
+  });
+}
+

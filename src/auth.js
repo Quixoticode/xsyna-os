@@ -43,7 +43,12 @@ $("login-form")?.addEventListener("submit", async (e) => {
   try {
     if (password) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('NetworkError') || error.message.includes('fetch')) {
+          throw new Error('CORS/Netzwerkfehler: Stelle sicher, dass w3.xsyna.de in den Supabase-Redirect-URLs hinterlegt ist (Dashboard → Authentication → URL Configuration).');
+        }
+        throw error;
+      }
       if (data.session) {
         showMessage("Erfolgreich angemeldet. Weiterleitung...", "success");
         redirectAfterAuth();

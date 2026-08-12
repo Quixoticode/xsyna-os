@@ -8,8 +8,25 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+  global: {
+    headers: { 'X-Client-Info': 'xsyna-web/1.0' },
   },
 });
+
+// Diagnostic: test connectivity
+window.__XSYNA_DIAG = async function () {
+  const r = {};
+  try {
+    const s = performance.now();
+    const res = await fetch(SUPABASE_URL + '/auth/v1/health', { method: 'GET' });
+    r.health = { ok: res.ok, status: res.status, ms: Math.round(performance.now() - s) };
+  } catch (e) {
+    r.health = { ok: false, error: e.message };
+  }
+  return r;
+};
 
 export async function getCurrentUser() {
   const {
