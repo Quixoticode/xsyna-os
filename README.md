@@ -57,6 +57,11 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
   inkl. „Installieren“-Button (beforeinstallprompt) und Einmal-Willkommens-Info.
 - **Bestand**: manuell, per Kamera (OCR) oder Sprache erfassen; Mengen/Labels
   werden von der Synaptic-Engine normalisiert; Suche & Kategorie-Gruppierung.
+- **Kamera-OCR mit Zutaten-Wissen**: Die Erkennung ist vokabular-gefiltert – sie
+  kennt alle Zutaten aus der Wissensbasis **und** aus deinen Rezepten
+  (inkl. importierter Web-Rezepte) und übernimmt nur echte Zutaten
+  („Zucker“ statt jedes einzelnen Zeichens). Marken, URLs, EAN-Nummern,
+  Preise und Fließtext werden verworfen.
 - **Mindesthaltbarkeit (MHD)**: optionales Ablaufdatum pro Artikel (im
   Mengen-Editor setzbar), MHD-Badges in der Liste (✓ grün / ⚠ läuft in ≤5
   Tagen ab / ✕ abgelaufen) und Filter-Chips „Alle / Abgelaufen / Läuft bald
@@ -64,6 +69,14 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
 - **Rezepte**: ~34 Beispielrezepte (Seed-Daten), eigene Rezepte, Portionen-
   Skalierung, Favoriten (⭐), Filter nach Bestand/Zutat/Favorit und Import
   eines Rezepts aus kopiertem Text (wird automatisch geparst).
+- **Web-Rezepte (öffentliche API)**: Rezepte von Websites mit offener API
+  (TheMealDB – kostenlos, ohne Schlüssel) suchen oder per Kategorie
+  durchstöbern. Ergebnisse werden automatisch mit dem Bestand abgeglichen
+  („X/Y Zutaten im Bestand“, fehlende Zutaten werden angezeigt); fehlende
+  Zutaten lassen sich mit einem Klick direkt in die Einkaufsliste packen,
+  Rezepte können lokal importiert werden (erweitert dann auch die
+  Kamera-Erkennung). Neue Quellen werden in `src/js/web-recipes.js`
+  (WEB_PROVIDERS) ergänzt.
 - **Wochenplan**: Rezepte für Frühstück/Mittag/Abend pro Tag planen, Woche für
   Woche navigieren, Tage als erledigt markieren und den kompletten Plan in eine
   Einkaufsliste verwandeln (nur fehlende Zutaten).

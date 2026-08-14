@@ -8,9 +8,9 @@
 //   wieder in der App – man kann nicht zur Website wechseln.
 // ============================================================
 
-const CACHE_NAME = "xsynarec-v3";
-const SHELL_CACHE = "xsynarec-shell-v3";
-const RUNTIME_CACHE = "xsynarec-runtime-v3";
+const CACHE_NAME = "xsynarec-v4";
+const SHELL_CACHE = "xsynarec-shell-v4";
+const RUNTIME_CACHE = "xsynarec-runtime-v4";
 
 const SHELL_URLS = [
   "/recipe-list/",

@@ -31,7 +31,12 @@ import {
   searchLabels,
   CATEGORIES,
 } from "./js/synaptic.js";
-import { extractRecipeFromHtml, generateRecipeSuggestions } from "./js/web-recipes.js";
+import {
+  extractRecipeFromHtml,
+  generateRecipeSuggestions,
+  searchWebRecipes,
+  fetchWebCategories,
+} from "./js/web-recipes.js";
 
 const $ = (id) => document.getElementById(id);
 const LS = {
@@ -615,7 +620,7 @@ function normalizeRecipe(r) {
     is_public: !!r.is_public,
     created_at: r.created_at || new Date().toISOString(),
     source: r.source || "manual",
-    sourceUrl: r.sourceUrl || "",
+    sourceUrl: r.sourceUrl || r.source_url || "",
   };
 }
 
@@ -896,6 +901,20 @@ function ensureRecipeExtras() {
     else document.querySelector("#app-content .rec-toolbar")?.appendChild(btn);
   }
 
+  if (!$("btn-web-recipes")) {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-secondary btn-sm";
+    btn.id = "btn-web-recipes";
+    btn.title = "Rezepte von Websites mit öffentlicher API suchen (TheMealDB – kostenlos, ohne Schlüssel)";
+    btn.innerHTML = `🔎 Web-Rezepte`;
+    btn.addEventListener("click", openWebRecipesModal);
+    const target = $("btn-import-recipe") || $("btn-new-recipe");
+    if (target && target.parentNode) target.parentNode.insertBefore(btn, target);
+    else document.querySelector("#app-content .rec-toolbar")?.appendChild(btn);
+  }
+
+  syncOcrVocab();
+
   const old = document.getElementById("sugg-section");
   if (old) old.remove();
   state.currentSuggestions = state.inventory.length >= 2 ? generateRecipeSuggestions(state.inventory, { limit: 4 }) : [];
@@ -908,6 +927,235 @@ function ensureRecipeExtras() {
   if (cards) cards.before(wrap);
   else document.querySelector("#app-content")?.appendChild(wrap);
   bindSuggestionActions();
+}
+
+// ============================================================
+// OCR-Vokabular: mögliche Zutaten aus den Rezepten, damit die
+// Kamera-Erkennung (extractFromOcr) nur echte Zutaten übernimmt
+// statt jedes einzelne Zeichen einer Etikett-/Kassenfoto-Zeile.
+// ============================================================
+function syncOcrVocab() {
+  try {
+    const names = [];
+    for (const r of state.recipes) {
+      for (const ing of r.ingredients || []) {
+        if (ing && ing.name) names.push(ing.name);
+      }
+    }
+    const key = names.join("|");
+    if (key !== (window.__XSYNA_RECIPE_VOCAB_KEY || "")) {
+      window.__XSYNA_RECIPE_VOCAB_KEY = key;
+      window.__XSYNA_RECIPE_VOCAB = names;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+// Hintergrund-Sync: hält das OCR-Vokabular aktuell, auch wenn
+// Rezepte importiert oder angelegt werden, ohne den Rezepte-Tab
+// zu öffnen (z. B. über das Cloud-Backup beim Start).
+if (typeof window !== "undefined") {
+  setInterval(syncOcrVocab, 3000);
+}
+
+// ============================================================
+// Web-Rezepte (öffentliche APIs) — suchen, mit Bestand abgleichen,
+// fehlende Zutaten direkt in die Einkaufsliste packen, importieren
+// ============================================================
+const WEB_LS_CATS = "xsynarec_web_categories";
+
+async function fetchWebCategoriesCached() {
+  try {
+    const cached = readLS(WEB_LS_CATS, null);
+    if (Array.isArray(cached) && cached.length) return cached;
+    const cats = await fetchWebCategories("themealdb");
+    writeLS(WEB_LS_CATS, cats);
+    return cats;
+  } catch {
+    return [];
+  }
+}
+
+function webCoverage(rec) {
+  return inventoryCoverage(rec.ingredients || [], state.inventory);
+}
+
+function renderWebCard(rec, cov, openId) {
+  const missing = cov.missing.slice(0, 4);
+  const more = cov.missing.length - missing.length;
+  const open = openId === rec.id;
+  return `
+    <div class="card rec-recipe web-card" data-web="${escapeHtml(rec.id)}" style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; gap:14px; align-items:flex-start;">
+        ${rec.image ? `<img src="${rec.image}" alt="" loading="lazy" style="width:88px; height:88px; object-fit:cover; border-radius:10px; flex-shrink:0; border:1px solid var(--border);" onerror="this.style.display='none'" />` : ""}
+        <div style="flex:1; min-width:0;">
+          <h3 style="font-size:1rem; font-weight:600; line-height:1.35; margin-bottom:6px;">${escapeHtml(rec.title)}</h3>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+            ${(rec.tags || []).map((t) => `<span class="rec-chip">${escapeHtml(t)}</span>`).join("")}
+            <span class="rec-chip muted">${escapeHtml(rec.provider || "Web")}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span class="rec-coverage ${cov.complete ? "ok" : ""}" title="${cov.have}/${cov.total} Zutaten im Bestand">${cov.complete ? ICONS.check + " " : ""}${cov.have}/${cov.total} im Bestand</span>
+            ${cov.complete ? `<span class="rec-chip ok">✅ Alles vorhanden</span>` : ""}
+          </div>
+          ${!cov.complete && cov.missing.length ? `
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center;">
+              <span style="font-size:0.72rem; color:var(--text-muted);">Fehlt:</span>
+              ${missing.map((m) => `<span class="rec-chip">${escapeHtml(m.name)}</span>`).join("")}
+              ${more ? `<span class="rec-chip muted">+${more} mehr</span>` : ""}
+            </div>` : ""}
+        </div>
+      </div>
+      <div class="rec-recipe-actions">
+        <button class="btn btn-secondary btn-sm" data-act="web-details">${open ? "Weniger" : "Details"}</button>
+        <button class="btn btn-secondary btn-sm" data-act="web-shop" ${cov.missing.length ? "" : "disabled"}>${ICONS.cart} Fehlendes kaufen</button>
+        <button class="btn btn-lime btn-sm" data-act="web-import">${ICONS.plus} Importieren</button>
+      </div>
+      ${open ? `
+        <div style="border-top:1px solid var(--border); padding-top:12px; max-height:220px; overflow:auto; font-size:0.85rem; color:var(--text-secondary); line-height:1.6; white-space:pre-wrap;">
+          <div style="font-weight:600; color:var(--text); margin-bottom:6px;">Zutaten</div>
+          <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:10px;">
+            ${rec.ingredients.map((i) => { const amt = formatAmount(i); return `<span>· ${amt ? escapeHtml(amt) + " " : ""}${escapeHtml(i.name)}</span>`; }).join("")}
+          </div>
+          ${rec.instructions ? `<div style="font-weight:600; color:var(--text); margin-bottom:6px;">Zubereitung</div>${escapeHtml(rec.instructions)}` : ""}
+          ${rec.sourceUrl ? `<p style="margin-top:10px; font-size:0.75rem;"><a href="${escapeHtml(rec.sourceUrl)}" target="_blank" rel="noopener" style="color:var(--lime);">Original-Rezept öffnen ↗</a></p>` : ""}
+        </div>` : ""}
+    </div>
+  `;
+}
+
+async function openWebRecipesModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "rec-overlay";
+  overlay.innerHTML = `
+    <div class="rec-modal rec-modal-lg">
+      <div class="rec-modal-head">
+        <h3 style="font-size:1.05rem;">🔎 Web-Rezepte finden</h3>
+        <button class="rec-icon-btn" data-close>${ICONS.x}</button>
+      </div>
+      <p style="color:var(--text-muted); font-size:0.78rem; margin-bottom:12px; line-height:1.5;">
+        Kostenlose öffentliche Rezept-API (TheMealDB, kein Schlüssel nötig). Ergebnisse werden automatisch mit deinem Bestand abgeglichen – fehlende Zutaten kannst du direkt auf die Einkaufsliste packen.
+      </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <input id="web-query" class="rec-input" placeholder="Rezept suchen (z. B. Spaghetti, Chicken, Curry)…" style="flex:1; min-width:180px;" />
+        <button class="btn btn-lime btn-sm" id="btn-web-search">${ICONS.spark} Suchen</button>
+      </div>
+      <div id="web-cats" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"></div>
+      <div id="web-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">Rezepte werden geladen…</div>
+      <div id="web-results" style="display:flex; flex-direction:column; gap:12px; max-height:58vh; overflow:auto; padding-right:4px;"></div>
+      <div class="rec-modal-foot">
+        <span style="font-size:0.72rem; color:var(--text-muted); margin-right:auto;">Powered by TheMealDB · Daten werden lokal verarbeitet</span>
+        <button class="btn btn-secondary btn-sm" data-close2>Schließen</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector("[data-close]").addEventListener("click", close);
+  overlay.querySelector("[data-close2]").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+
+  const status = overlay.querySelector("#web-status");
+  const resultsEl = overlay.querySelector("#web-results");
+  const catsEl = overlay.querySelector("#web-cats");
+  let openId = null;
+
+  const render = (recipes) => {
+    if (!recipes.length) {
+      resultsEl.innerHTML = `<div class="card rec-empty" style="padding:32px; text-align:center;">${ICONS.book}<h3>Keine Rezepte gefunden</h3><p style="color:var(--text-muted); font-size:0.85rem;">Anderen Suchbegriff probieren oder eine Kategorie wählen.</p></div>`;
+      return;
+    }
+    const withCov = recipes.map((r) => ({ rec: r, cov: webCoverage(r) }));
+    withCov.sort((a, b) => (b.cov.complete ? 1 : 0) - (a.cov.complete ? 1 : 0) || b.cov.score - a.cov.score || b.cov.have - a.cov.have);
+    const complete = withCov.filter((x) => x.cov.complete).length;
+    resultsEl.innerHTML =
+      (complete ? `<div style="font-size:0.78rem; color:var(--lime); margin-bottom:6px;">✅ ${complete} Rezept(e), die du direkt kochen kannst</div>` : "") +
+      withCov.map(({ rec, cov }) => renderWebCard(rec, cov, openId)).join("");
+    resultsEl.querySelectorAll("[data-act]").forEach((btn) => {
+      const card = btn.closest(".web-card");
+      if (!card) return;
+      const id = card.dataset.web;
+      const entry = withCov.find((x) => x.rec.id === id);
+      if (!entry) return;
+      if (btn.dataset.act === "web-details") {
+        btn.addEventListener("click", () => { openId = openId === id ? null : id; render(withCov.map((x) => x.rec)); });
+      } else if (btn.dataset.act === "web-shop") {
+        btn.addEventListener("click", () => { addWebMissingToList(entry.rec); close(); });
+      } else if (btn.dataset.act === "web-import") {
+        btn.addEventListener("click", async () => { await importWebRecipe(entry.rec); render(withCov.map((x) => x.rec)); });
+      }
+    });
+  };
+
+  const load = async (opts) => {
+    status.textContent = "⏳ Rezepte werden geladen…";
+    status.style.color = "var(--text-muted)";
+    try {
+      const recipes = await searchWebRecipes(opts);
+      status.textContent = recipes.length ? `${recipes.length} Rezepte von TheMealDB geladen.` : "Keine Treffer.";
+      render(recipes);
+    } catch (e) {
+      status.textContent = "❌ Web-Rezepte nicht erreichbar (offline oder API blockiert).";
+      status.style.color = "var(--error)";
+      resultsEl.innerHTML = `<div class="card rec-empty" style="padding:32px; text-align:center;">${ICONS.book}<h3>Keine Verbindung</h3><p style="color:var(--text-muted); font-size:0.85rem;">Web-Rezepte brauchen Internet. Deine lokalen Rezepte funktionieren weiterhin – auch offline.</p></div>`;
+    }
+  };
+
+  fetchWebCategoriesCached().then((cats) => {
+    if (!cats.length || !overlay.isConnected) return;
+    catsEl.innerHTML = `<button class="rec-filter active" data-cat="">Alle / Neueste</button>` +
+      cats.map((c) => `<button class="rec-filter" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("");
+    catsEl.querySelectorAll("[data-cat]").forEach((b) => {
+      b.addEventListener("click", () => {
+        catsEl.querySelectorAll(".rec-filter").forEach((x) => x.classList.toggle("active", x === b));
+        load({ category: b.dataset.cat || "" });
+      });
+    });
+  });
+
+  overlay.querySelector("#btn-web-search").addEventListener("click", () => {
+    const q = overlay.querySelector("#web-query").value.trim();
+    load({ query: q });
+  });
+  overlay.querySelector("#web-query").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") overlay.querySelector("#btn-web-search").click();
+  });
+
+  load({});
+}
+
+async function importWebRecipe(rec) {
+  const existing = state.recipes.some((r) => r.title.toLowerCase() === rec.title.toLowerCase());
+  if (existing) { toast("Dieses Rezept ist bereits gespeichert.", "warning"); return; }
+  const r = normalizeRecipe({
+    id: uuid(),
+    title: rec.title,
+    servings: rec.servings || 2,
+    ingredients: (rec.ingredients || []).map((i) => ({ name: i.name, amount: i.amount, unit: i.unit || "", category: i.category || "Sonstiges" })),
+    instructions: rec.instructions || "",
+    tags: rec.tags || [],
+    is_public: false,
+    source_url: rec.sourceUrl || "",
+    created_at: new Date().toISOString(),
+  });
+  state.recipes.unshift(r);
+  await persistRecipes();
+  syncOcrVocab();
+  renderContent();
+  toast(`Rezept „${rec.title}“ importiert – die Kamera-Erkennung kennt die Zutaten jetzt.`, "success");
+}
+
+function addWebMissingToList(rec) {
+  const cov = webCoverage(rec);
+  if (!cov.missing.length) { toast("Alles vorhanden – nichts zu kaufen.", "success"); return; }
+  const items = mergeItems(cov.missing.map((m) => ({ name: m.name, amount: m.amount, unit: m.unit || "", category: m.category || "Sonstiges", done: false })));
+  currentListItems = mergeItems([...currentListItems, ...items]);
+  persistCurrentList();
+  state.tab = "einkauf";
+  renderTabs();
+  renderContent();
+  toast(`${items.length} fehlende Zutaten zur Einkaufsliste hinzugefügt.`, "success");
 }
 
 // bindRecipes wird bei jedem Rendern des Rezepte-Tabs aufgerufen

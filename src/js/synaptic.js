@@ -579,6 +579,39 @@ const KNOWLEDGE = [
   K("Vogelstreu", "Tierbedarf", "Packung", []),
 ];
 
+// Englische Alltags-/Rezept-Aliase (TheMealDB & Co.), damit
+// Web-Rezepte und englische Etiketten besser erkannt werden.
+const EN_ALIASES = {
+  "Milch": ["milk"],
+  "Zucker": ["sugar", "brown sugar", "white sugar"],
+  "Olivenöl": ["olive oil"],
+  "Salz": ["salt"],
+  "Pfeffer": ["pepper", "black pepper"],
+  "Zwiebeln": ["onion", "yellow onion"],
+  "Tomaten": ["tomato", "cherry tomatoes"],
+  "Kartoffeln": ["potato"],
+  "Möhren": ["carrot"],
+  "Rinderhack": ["ground beef", "minced beef"],
+  "Reis": ["rice"],
+  "Mehl": ["flour"],
+  "Käse": ["cheese", "cheddar cheese"],
+  "Wasser": ["water"],
+  "Honig": ["honey"],
+  "Zitronen": ["lemon", "lemons"],
+  "Limetten": ["lime", "limes"],
+  "Knoblauch": ["garlic clove", "garlic cloves"],
+  "Eier": ["egg"],
+  "Champignons": ["mushroom"],
+  "Hähnchen": ["chicken", "chicken breast", "chicken thighs", "chicken fillet"],
+  "Nudeln": ["spaghetti", "penne", "fusilli"],
+  "Zucchini": ["courgette"],
+  "Sojasauce": ["soy sauce"],
+  "Tomatenmark": ["tomato paste", "tomato puree"],
+  "Passierte Tomaten": ["passata", "tomato sauce"],
+  "Butter": ["butter"],
+  "Sahne": ["cream", "heavy cream", "double cream"],
+};
+
 // Lookup-Tabellen (nur einmal aufbauen)
 const KB_KEYS = [];
 const KB_LOOKUP = new Map();
@@ -590,6 +623,14 @@ for (const entry of KNOWLEDGE) {
   for (const alias of entry.aliases) {
     const a = normalize(alias);
     if (!KB_ALIAS.has(a)) KB_ALIAS.set(a, entry);
+  }
+}
+for (const [name, aliases] of Object.entries(EN_ALIASES)) {
+  const entry = KB_LOOKUP.get(normalize(name));
+  if (!entry) continue;
+  for (const a of aliases) {
+    const an = normalize(a);
+    if (!KB_ALIAS.has(an)) KB_ALIAS.set(an, entry);
   }
 }
 
@@ -607,6 +648,7 @@ const WORD_NUMBERS = {
 const FRACTIONS = { "½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
 const UNITS = [
   "kg", "g", "ml", "l", "liter", "gramm", "kilogramm", "milliliter",
+  "cup", "cups", "tbsp", "tablespoon", "tablespoons", "tsp", "teaspoon", "teaspoons", "lb", "lbs",
   "stück", "stk", "packung", "pck", "pkg", "dose", "bund", "prise",
   "el", "tl", "tasse", "tassen", "scheibe", "scheiben", "flasche", "flaschen",
   "glas", "gläser", "zehe", "zehen", "würfel", "beutel", "becher", "rolle", "rollen",
@@ -617,6 +659,8 @@ const UNITS = [
 const UNIT_NORM = {
   kg: "kg", gramm: "g", g: "g", liter: "l", l: "l", milliliter: "ml", ml: "ml", kilogramm: "kg",
   stück: "Stück", stk: "Stück", packung: "Packung", pck: "Packung", pkg: "Packung",
+  cup: "Tasse", cups: "Tasse", tbsp: "EL", tablespoon: "EL", tablespoons: "EL",
+  tsp: "TL", teaspoon: "TL", teaspoons: "TL", lb: "lb", lbs: "lb",
   dose: "Dose", bund: "Bund", prise: "Prise", el: "EL", tl: "TL",
   tasse: "Tasse", tassen: "Tasse", scheibe: "Scheibe", scheiben: "Scheibe",
   flasche: "Flasche", flaschen: "Flasche", glas: "Glas", gläser: "Glas", gläser: "Glas",
@@ -793,16 +837,131 @@ export function cleanOcr(raw) {
   });
 }
 
-export function extractFromOcr(raw) {
-  const lines = cleanOcr(raw);
-  const items = [];
-  for (const line of lines) {
-    const item = parseLine(line);
-    if (!item.name || item.name.length < 2) continue;
-    if (/^[\d\s.,]+$/.test(item.name)) continue;
-    item.source = "camera";
-    items.push(item);
+// ------------------------------------------------------------
+// OCR-Extraktion (vokabular-gefiltert)
+// ------------------------------------------------------------
+// Statt jede OCR-Zeile blind in einen Artikel zu verwandeln, wird
+// gegen die Zutaten-Wissensbasis plus die bekannten Rezept-Zutaten
+// geprüft: Es werden nur mögliche Zutaten erkannt („Zucker“ statt
+// jedes einzelnen Zeichens). Unbekannte Zeilen (Marken, URLs,
+// Fließtext) werden verworfen oder als unsicher geführt.
+
+export function getKnownIngredients() {
+  return KNOWLEDGE.map((e) => e.name);
+}
+
+function buildOcrVocab(extraNames) {
+  const entries = [];
+  const seen = new Set();
+  const push = (norm, entry, confidence) => {
+    if (!norm || norm.length < 2 || seen.has(norm)) return;
+    seen.add(norm);
+    entries.push({ norm, entry, confidence });
+  };
+  for (const e of KNOWLEDGE) {
+    push(normalize(e.name), e, 1);
+    for (const a of e.aliases) push(normalize(a), e, 0.9);
   }
+  for (const name of extraNames || []) {
+    if (!name || typeof name !== "string") continue;
+    push(normalize(name), { name: String(name).trim(), category: null, unit: null }, 0.75);
+  }
+  entries.sort((a, b) => b.norm.length - a.norm.length);
+  return entries;
+}
+
+export function extractFromOcr(raw, vocab = []) {
+  const lines = cleanOcr(raw);
+  // Rezept-Zutaten aus der App (window.__XSYNA_RECIPE_VOCAB) ergänzen,
+  // damit die Erkennung auch importierte/angelegte Zutaten kennt.
+  const appVocab =
+    typeof window !== "undefined" && Array.isArray(window.__XSYNA_RECIPE_VOCAB)
+      ? window.__XSYNA_RECIPE_VOCAB
+      : [];
+  const entries = buildOcrVocab([...(vocab || []), ...appVocab]);
+  const items = [];
+  const seen = new Set();
+
+  const add = (name, amount, unit, category, confidence, sure) => {
+    const key = normalize(name);
+    if (!key || key.length < 2 || seen.has(key)) return;
+    if (/^[\d\s.,]+$/.test(key)) return;
+    // EAN/Preise/Daten (lange Ziffernfolgen) verwerfen
+    if (/\d{6,}/.test(key)) return;
+    // unsichere Treffer ohne Menge (z. B. „Netto 1 kg“, „EAN …“) verwerfen
+    if (!sure && amount == null) return;
+    seen.add(key);
+    items.push({
+      name,
+      amount: amount ?? null,
+      unit: unit || "",
+      category: category || "Sonstiges",
+      confidence,
+      source: "camera",
+      sure,
+    });
+  };
+
+  // Alle bekannten Zutaten-Namen in einer Zeile finden (längste zuerst)
+  const embedded = (textNorm, cb) => {
+    let cursor = 0;
+    let found = false;
+    for (const v of entries) {
+      if (v.norm.length < 3) continue;
+      const idx = textNorm.indexOf(v.norm, cursor);
+      if (idx === -1) continue;
+      found = true;
+      cb(v);
+      cursor = idx + v.norm.length;
+    }
+    return found;
+  };
+
+  for (const line of lines) {
+    const lineNorm = normalize(line);
+    if (!lineNorm) continue;
+
+    // 1) Zeile beginnt mit einer Menge (z. B. „500 g Zucker“)
+    const { amount } = parseAmount(line);
+    if (amount != null) {
+      const item = parseLine(line);
+      if (item.confidence >= 0.6) {
+        add(item.name, item.amount, item.unit, item.category, Math.max(item.confidence, 0.85), true);
+        continue;
+      }
+      const found = embedded(lineNorm, (v) =>
+        add(v.entry.name, null, v.entry.unit || "", v.entry.category || "Sonstiges", v.confidence, true)
+      );
+      if (found) continue;
+      // unbekannt, aber mit Menge → unsicher übernehmen
+      add(item.name, item.amount, item.unit, item.category, item.confidence, false);
+      continue;
+    }
+
+    // 2) ohne Menge: alle bekannten Zutaten-Namen der Zeile extrahieren
+    const found = embedded(lineNorm, (v) =>
+      add(v.entry.name, null, v.entry.unit || "", v.entry.category || "Sonstiges", v.confidence, true)
+    );
+    if (found) continue;
+
+    // 3) kurze, mengenartige Zeile → unsicher (nicht vorausgewählt)
+    const words = line.split(/\s+/).filter(Boolean);
+    if (/\d/.test(line) && words.length <= 5) {
+      const item = parseLine(line);
+      add(item.name, item.amount, item.unit, item.category, item.confidence, false);
+    }
+    // alles andere (Marken, URLs, Fließtext) wird verworfen
+  }
+
+  // 4) Gesamttext-Scan: Zutaten, die in keiner Zeile direkt standen
+  const fullNorm = normalize(lines.join(" "));
+  for (const v of entries) {
+    if (v.norm.length < 3) continue;
+    if (fullNorm.includes(v.norm)) {
+      add(v.entry.name, null, v.entry.unit || "", v.entry.category || "Sonstiges", v.confidence, true);
+    }
+  }
+
   return items;
 }
 

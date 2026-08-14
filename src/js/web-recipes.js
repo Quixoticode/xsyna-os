@@ -479,3 +479,122 @@ export function generateRecipeSuggestions(inventory, { limit = 4 } = {}) {
   out.sort((a, b) => b.score - a.score || a.missing.length - b.missing.length);
   return out.slice(0, limit);
 }
+
+// ============================================================
+// Web-Rezept-Quellen mit öffentlicher API (kostenlos, ohne Schlüssel)
+// ------------------------------------------------------------
+// Definierte Quellen, die eine offene JSON-API anbieten. Neue
+// Quellen können hier ergänzt werden (gleiche Schnittstelle).
+// ============================================================
+const THEMEALDB = "https://www.themealdb.com/api/json/v1/1/";
+
+function themealdbIngredients(m) {
+  const ings = [];
+  for (let i = 1; i <= 20; i++) {
+    const ing = String(m["strIngredient" + i] || "").trim();
+    const meas = String(m["strMeasure" + i] || "").trim();
+    if (!ing || ing === "0" || /^[\s]*$/.test(ing)) continue;
+    const line = meas && meas !== "0" ? `${meas} ${ing}` : ing;
+    const p = parseLine(line);
+    if (!p.name || p.name.length < 2) continue;
+    ings.push({ name: p.name, amount: p.amount, unit: p.unit, category: p.category });
+  }
+  return mergeItems(ings);
+}
+
+function themealdbMeal(m) {
+  return {
+    id: "themealdb-" + m.idMeal,
+    title: String(m.strMeal || "").trim().slice(0, 120) || "Unbenanntes Rezept",
+    servings: Math.max(1, Math.min(24, Number(m.strServings) || 2)),
+    ingredients: themealdbIngredients(m),
+    instructions: String(m.strInstructions || "").trim().slice(0, 5000),
+    tags: [String(m.strCategory || "").trim(), String(m.strArea || "").trim()].filter(Boolean).slice(0, 6),
+    image: String(m.strMealThumb || "").trim(),
+    sourceUrl: String(m.strSource || m.strYoutube || "").trim(),
+    provider: "TheMealDB",
+  };
+}
+
+export const WEB_PROVIDERS = [
+  {
+    id: "themealdb",
+    name: "TheMealDB",
+    tagline: "Kostenlose öffentliche Rezept-API, kein Schlüssel nötig",
+    searchUrl: (q) => THEMEALDB + "search.php?s=" + encodeURIComponent(q),
+    ingredientUrl: (q) => THEMEALDB + "filter.php?i=" + encodeURIComponent(q),
+    categoryUrl: (c) => THEMEALDB + "filter.php?c=" + encodeURIComponent(c),
+    randomUrl: () => THEMEALDB + "random.php",
+    lookupUrl: (id) => THEMEALDB + "lookup.php?i=" + encodeURIComponent(id),
+    categoriesUrl: () => THEMEALDB + "list.php?c=list",
+    parseMeals: (json) => (json && json.meals) || [],
+    parseMeal: (json) => (json && json.meals && json.meals[0]) || null,
+    parseCategories: (json) => ((json && json.meals) || []).map((m) => String(m.strCategory || "").trim()).filter(Boolean),
+    toRecipe: themealdbMeal,
+  },
+];
+
+async function fetchJson(url, timeoutMs = 8000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Kategorie-/Zutaten-Treffer liefern nur Kurz-Infos → Details nachladen
+async function withLookups(provider, shortMeals, limit) {
+  const out = [];
+  for (const m of (shortMeals || []).slice(0, limit)) {
+    try {
+      const full = provider.parseMeal(await fetchJson(provider.lookupUrl(m.idMeal)));
+      if (full) out.push(full);
+    } catch {
+      /* einzelnes Rezept übersprungen */
+    }
+  }
+  return out;
+}
+
+// Einheitliche Suche über die definierten Web-Quellen.
+// Ergebnisform: { id, title, servings, ingredients, instructions, tags, image, sourceUrl, provider }
+export async function searchWebRecipes({ query = "", ingredient = "", category = "", providerId = "themealdb", limit = 12 } = {}) {
+  const provider = WEB_PROVIDERS.find((p) => p.id === providerId) || WEB_PROVIDERS[0];
+  let meals = [];
+  if (query) {
+    const json = await fetchJson(provider.searchUrl(query));
+    meals = provider.parseMeals(json);
+  } else if (ingredient) {
+    const json = await fetchJson(provider.ingredientUrl(ingredient));
+    meals = await withLookups(provider, provider.parseMeals(json), Math.min(limit, 8));
+  } else if (category) {
+    const json = await fetchJson(provider.categoryUrl(category));
+    meals = await withLookups(provider, provider.parseMeals(json), Math.min(limit, 8));
+  } else {
+    // Startansicht: mehrere zufällige Rezepte (latest.php ist nicht mehr offen)
+    const seen = new Set();
+    for (let i = 0; i < Math.min(limit, 4); i++) {
+      try {
+        const json = await fetchJson(provider.randomUrl());
+        const m = provider.parseMeal(json);
+        if (m && !seen.has(m.idMeal)) {
+          seen.add(m.idMeal);
+          meals.push(m);
+        }
+      } catch {
+        /* einzelner Zufallstreffer übersprungen */
+      }
+    }
+  }
+  return (meals || []).map((m) => provider.toRecipe(m)).slice(0, limit);
+}
+
+export async function fetchWebCategories(providerId = "themealdb") {
+  const provider = WEB_PROVIDERS.find((p) => p.id === providerId) || WEB_PROVIDERS[0];
+  const json = await fetchJson(provider.categoriesUrl());
+  return provider.parseCategories(json);
+}
