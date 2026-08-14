@@ -39,6 +39,9 @@ const LS = {
   selected: "xsynarec_selected",
   current: "xsynarec_current",
   currentTitle: "xsynarec_current_title",
+  plan: "xsynarec_plan",
+  history: "xsynarec_history",
+  favs: "xsynarec_favs",
 };
 
 const state = {
@@ -51,6 +54,10 @@ const state = {
   tab: "bestand",
   hideDone: false,
   recipeFilter: { query: "", ingredient: "", status: "any", sort: "match" },
+  plan: {},
+  history: [],
+  favs: new Set(),
+  planWeekOffset: 0,
 };
 
 let currentListItems = [];
@@ -73,6 +80,11 @@ const ICONS = {
   print: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
   download: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
   upload: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  calendar: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  chart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  star: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  copy: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  share: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
 };
 
 // ============================================================
@@ -119,7 +131,7 @@ const supabase = {
 // (z. B. /recipe-list/?tab=einkauf aus den Manifest-Shortcuts).
 (function setupAppBootstrap() {
   const tabParam = new URLSearchParams(window.location.search).get("tab");
-  if (tabParam === "bestand" || tabParam === "rezepte" || tabParam === "einkauf") {
+  if (tabParam === "bestand" || tabParam === "rezepte" || tabParam === "einkauf" || tabParam === "plan" || tabParam === "stats") {
     state.tab = tabParam;
   }
   if ("serviceWorker" in navigator) {
@@ -207,6 +219,174 @@ const SEED_RECIPES = [
     instructions: "Eier verquirlen und würzen. Butter in der Pfanne zerlassen, Eier stockend rühren. Toast rösten, mit Rührei und Schnittlauch servieren.",
     tags: ["Frühstück", "Schnell", "Vegetarisch"],
   },
+  {
+    title: "Ofen-Lasagne",
+    servings: 4,
+    ingredients: "12 Lasagneplatten\n400 g Rinderhack\n800 ml Passierte Tomaten\n2 Zwiebeln\n2 Knoblauchzehen\n2 Möhren\n2 EL Tomatenmark\n500 ml Milch\n50 g Butter\n50 g Mehl\n150 g Käse\n1 EL Olivenöl\nSalz\nPfeffer\nMuskat",
+    instructions: "Zwiebeln, Knoblauch und Möhren fein würfeln und im Öl anbraten. Hackfleisch zugeben und krümelig braten, Tomatenmark einrühren, Passierte Tomaten angießen und 15 Minuten köcheln. Aus Butter, Mehl und Milch eine Béchamel kochen und mit Muskat, Salz und Pfeffer würzen. Lasagneplatten, Hack-Sauce und Béchamel schichten, mit Käse bestreuen und bei 180 °C 35 Minuten backen.",
+    tags: ["Pasta", "Ofen", "Fleisch"],
+  },
+  {
+    title: "Shakshuka",
+    servings: 2,
+    ingredients: "4 Eier\n400 ml Passierte Tomaten\n1 Paprika\n1 Zwiebel\n2 Knoblauchzehen\n1 TL Kreuzkümmel\n1 TL Paprikapulver\n1 Bund Petersilie\n1 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Zwiebel, Knoblauch und Paprika im Öl weich dünsten. Gewürze kurz mitrösten, Passierte Tomaten angießen und 10 Minuten einkochen. Mulden formen, Eier hineinschlagen und zugedeckt 5–7 Minuten stocken lassen. Mit Petersilie servieren.",
+    tags: ["Eier", "Vegetarisch", "Orientalisch"],
+  },
+  {
+    title: "Kürbissuppe",
+    servings: 4,
+    ingredients: "600 g Kürbis\n1 Zwiebel\n2 Möhren\n1 l Brühe\n200 ml Sahne\n1 Stück Ingwer\nMuskat\nSalz\nPfeffer",
+    instructions: "Kürbis, Möhren und Zwiebel würfeln und kurz anschwitzen. Ingwer zugeben, Brühe angießen und 25 Minuten weich kochen. Fein pürieren, Sahne einrühren und mit Muskat, Salz und Pfeffer abschmecken.",
+    tags: ["Suppe", "Vegetarisch", "Herbst"],
+  },
+  {
+    title: "Pesto-Pasta",
+    servings: 2,
+    ingredients: "400 g Nudeln\n1 Glas Pesto\n100 g Parmesan\n2 Tomaten\n1 EL Olivenöl",
+    instructions: "Nudeln al dente kochen, etwas Nudelwasser aufheben. Pesto mit dem Nudelwasser verrühren und unter die Nudeln heben. Mit Tomatenwürfeln und gehobeltem Parmesan servieren.",
+    tags: ["Pasta", "Vegetarisch", "Schnell"],
+  },
+  {
+    title: "Griechischer Salat",
+    servings: 2,
+    ingredients: "3 Tomaten\n1 Gurke\n200 g Feta\n100 g Oliven\n1 Zwiebel\n1 TL Oregano\n2 EL Olivenöl\n1 EL Essig\nSalz\nPfeffer",
+    instructions: "Tomaten, Gurke und Zwiebel in grobe Stücke schneiden. Oliven und gewürfelten Feta zugeben. Aus Öl, Essig, Oregano, Salz und Pfeffer ein Dressing rühren und unterheben.",
+    tags: ["Salat", "Vegetarisch", "Schnell"],
+  },
+  {
+    title: "Linsensuppe",
+    servings: 4,
+    ingredients: "250 g Linsen\n2 Möhren\n1 Zwiebel\n1 Stange Lauch\n1 l Brühe\n2 EL Tomatenmark\n2 Lorbeerblätter\n1 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Zwiebel und Lauch im Öl anschwitzen, Tomatenmark einrühren. Möhren, Linsen und Lorbeer zugeben, Brühe angießen und 40 Minuten leise köcheln. Lorbeer entfernen und mit Salz und Pfeffer abschmecken.",
+    tags: ["Suppe", "Vegetarisch", "Winter"],
+  },
+  {
+    title: "Burrito Bowl",
+    servings: 2,
+    ingredients: "200 g Reis\n1 Dose Kidneybohnen\n1 Dose Mais\n2 Tomaten\n1 Avocado\n1 Zwiebel\n1 Limette\n1 Bund Koriander (frisch)\nSalz",
+    instructions: "Reis kochen. Kidneybohnen und Mais abspülen, Tomaten und Zwiebel würfeln. Alles in Schüsseln schichten, Avocado daraufsetzen und mit Limettensaft und Koriander toppen.",
+    tags: ["Reis", "Vegetarisch", "Mexikanisch"],
+  },
+  {
+    title: "Thai Curry mit Hähnchen",
+    servings: 3,
+    ingredients: "400 g Hähnchen\n1 Paprika\n1 Zucchini\n2 Möhren\n2 EL Currypaste\n400 ml Kokosmilch\n200 g Reis\n1 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Hähnchen in Streifen schneiden und im Öl anbraten. Gemüse zugeben und mitbraten. Currypaste einrühren, Kokosmilch angießen und 10 Minuten köcheln. Mit Reis servieren.",
+    tags: ["Curry", "Fleisch", "Asiatisch"],
+  },
+  {
+    title: "Ramen",
+    servings: 2,
+    ingredients: "200 g Ramen\n2 Eier\n4 Frühlingszwiebeln\n1 Möhre\n2 EL Sojasauce\n1 EL Sesamöl\n1 Stück Ingwer\n2 Knoblauchzehen\n1 l Hühnerbrühe",
+    instructions: "Brühe mit Sojasauce, Sesamöl, Ingwer und Knoblauch aufkochen und die Ramen darin gar ziehen lassen. Eier 6 Minuten kochen und halbieren. Suppe mit Eiern, Möhrenstreifen und Frühlingszwiebeln anrichten.",
+    tags: ["Suppe", "Fleisch", "Asiatisch"],
+  },
+  {
+    title: "Pizza Margherita",
+    servings: 2,
+    ingredients: "1 Packung Pizzateig\n400 ml Passierte Tomaten\n200 g Mozzarella\n1 Bund Basilikum\n1 EL Olivenöl\nSalz",
+    instructions: "Teig ausrollen, mit Passierten Tomaten bestreichen und mit Mozzarella belegen. Bei 220 °C 12–15 Minuten backen und mit Basilikum und Olivenöl anrichten.",
+    tags: ["Ofen", "Vegetarisch", "Italienisch"],
+  },
+  {
+    title: "Kartoffelgratin",
+    servings: 4,
+    ingredients: "1 kg Kartoffeln\n200 ml Sahne\n150 g Käse\n1 Zehe Knoblauch\nMuskat\nSalz\nPfeffer",
+    instructions: "Kartoffeln in dünne Scheiben hobeln. Mit Sahne, Knoblauch, Muskat, Salz und Pfeffer mischen und in eine Auflaufform schichten. Mit Käse bestreuen und bei 180 °C 50 Minuten backen.",
+    tags: ["Ofen", "Vegetarisch", "Beilage"],
+  },
+  {
+    title: "Nudelauflauf",
+    servings: 4,
+    ingredients: "400 g Nudeln\n3 Tomaten\n1 Zucchini\n200 g Schmand\n150 g Käse\n1 EL Oregano\nSalz\nPfeffer",
+    instructions: "Nudeln bissfest kochen. Tomaten und Zucchini würfeln und mit Nudeln und Schmand mischen und würzen. In eine Form geben, mit Käse bestreuen und bei 190 °C 25 Minuten backen.",
+    tags: ["Pasta", "Ofen", "Vegetarisch"],
+  },
+  {
+    title: "Flammkuchen",
+    servings: 2,
+    ingredients: "1 Packung Pizzateig\n200 g Crème fraîche\n150 g Speck\n2 Zwiebeln\nSalz\nPfeffer\nMuskat",
+    instructions: "Teig dünn ausrollen. Crème fraîche mit Salz, Pfeffer und Muskat verrühren und auf dem Teig verteilen. Mit Speckwürfeln und Zwiebelringen belegen und bei 250 °C 12 Minuten knusprig backen.",
+    tags: ["Ofen", "Schnell", "Klassiker"],
+  },
+  {
+    title: "Quesadillas",
+    servings: 2,
+    ingredients: "4 Wraps\n150 g Käse\n1 Paprika\n1 Dose Mais\n1 Zwiebel\n1 EL Olivenöl",
+    instructions: "Paprika und Zwiebel würfeln und kurz im Öl anbraten. Wraps mit Käse, Gemüse und Mais belegen, zusammenklappen und in der Pfanne von beiden Seiten goldbraun backen.",
+    tags: ["Schnell", "Vegetarisch", "Mexikanisch"],
+  },
+  {
+    title: "Bratkartoffeln",
+    servings: 2,
+    ingredients: "800 g Kartoffeln\n2 Zwiebeln\n100 g Speck\n1 EL Paprikapulver\nSalz\nPfeffer",
+    instructions: "Gekochte Kartoffeln in Scheiben schneiden. Speck und Zwiebeln anbraten, Kartoffeln zugeben und knusprig braten. Mit Paprikapulver, Salz und Pfeffer würzen.",
+    tags: ["Beilage", "Fleisch", "Klassiker"],
+  },
+  {
+    title: "Gulasch",
+    servings: 4,
+    ingredients: "800 g Rindfleisch\n3 Zwiebeln\n2 Paprika\n2 EL Tomatenmark\n1 EL Paprikapulver\n500 ml Brühe\n2 Knoblauchzehen\n1 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Fleisch würfeln und im Öl scharf anbraten. Zwiebeln, Knoblauch und Paprika zugeben. Tomatenmark und Paprikapulver einrühren, Brühe angießen und 1,5 Stunden leise schmoren. Mit Salz und Pfeffer abschmecken.",
+    tags: ["Eintopf", "Fleisch", "Ungarisch"],
+  },
+  {
+    title: "Ratatouille",
+    servings: 4,
+    ingredients: "2 Zucchini\n1 Aubergine\n2 Paprika\n4 Tomaten\n1 Zwiebel\n2 Knoblauchzehen\n1 TL Thymian\n2 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Alle Gemüse würfeln. Zwiebel und Knoblauch im Öl anschwitzen, Gemüse zugeben und 25 Minuten sanft schmoren. Mit Thymian, Salz und Pfeffer würzen.",
+    tags: ["Vegetarisch", "Ofen", "Französisch"],
+  },
+  {
+    title: "Apfelstrudel",
+    servings: 6,
+    ingredients: "4 Äpfel\n1 Packung Blätterteig\n50 g Zucker\n50 g Rosinen\n1 TL Zimt\n50 g Butter\n1 Ei",
+    instructions: "Äpfel schälen und in feine Scheiben schneiden, mit Zucker, Rosinen und Zimt mischen. Blätterteig ausrollen, Füllung darauf verteilen, einrollen und mit verquirltem Ei bestreichen. Bei 180 °C 35 Minuten goldbraun backen.",
+    tags: ["Süß", "Ofen", "Dessert"],
+  },
+  {
+    title: "Overnight Oats",
+    servings: 1,
+    ingredients: "60 g Haferflocken\n150 g Joghurt\n100 ml Milch\n1 EL Chiasamen\n1 EL Honig\n100 g Himbeeren",
+    instructions: "Haferflocken, Joghurt, Milch, Chiasamen und Honig im Glas verrühren. Über Nacht kalt stellen und am Morgen mit Himbeeren toppen.",
+    tags: ["Frühstück", "Vegetarisch", "Schnell"],
+  },
+  {
+    title: "French Toast",
+    servings: 2,
+    ingredients: "4 Scheiben Brot\n2 Eier\n100 ml Milch\n1 EL Zucker\n1 TL Zimt\n20 g Butter",
+    instructions: "Eier mit Milch, Zucker und Zimt verquirlen. Brotscheiben darin einweichen und in Butter von beiden Seiten goldbraun braten.",
+    tags: ["Frühstück", "Süß", "Schnell"],
+  },
+  {
+    title: "Bananenbrot",
+    servings: 8,
+    ingredients: "3 Bananen\n200 g Mehl\n100 g Zucker\n2 Eier\n80 g Butter\n1 Packung Backpulver\n1 TL Zimt\n50 g Nüsse",
+    instructions: "Bananen zerdrücken. Butter und Zucker schaumig rühren, Eier und Bananen zugeben. Mehl, Backpulver und Zimt unterheben, Nüsse einrühren. Bei 175 °C 55 Minuten backen.",
+    tags: ["Süß", "Backen", "Snack"],
+  },
+  {
+    title: "Schokoladenkuchen",
+    servings: 10,
+    ingredients: "200 g Schokolade\n150 g Butter\n150 g Zucker\n3 Eier\n150 g Mehl\n2 EL Kakaopulver\n1 Packung Backpulver",
+    instructions: "Schokolade mit Butter schmelzen. Zucker und Eier unterrühren. Mehl, Kakaopulver und Backpulver einarbeiten. In eine Form füllen und bei 175 °C 35 Minuten backen.",
+    tags: ["Süß", "Backen", "Dessert"],
+  },
+  {
+    title: "Risotto",
+    servings: 3,
+    ingredients: "300 g Reis\n1 Zwiebel\n1 l Brühe\n100 ml Weißwein\n50 g Parmesan\n50 g Butter\nSalz\nPfeffer",
+    instructions: "Zwiebel in der Hälfte der Butter glasig dünsten. Reis zugeben und kurz mitrösten, mit Weißwein ablöschen. Nach und nach heiße Brühe angießen und unter Rühren 20 Minuten cremig kochen. Parmesan und restliche Butter unterrühren und würzen.",
+    tags: ["Reis", "Vegetarisch", "Italienisch"],
+  },
+  {
+    title: "Käsespätzle",
+    servings: 3,
+    ingredients: "500 g Spätzle\n200 g Käse\n2 Zwiebeln\n50 g Butter\nSchnittlauch",
+    instructions: "Spätzle nach Packungsanweisung kochen und abtropfen lassen. In einer Pfanne schichtweise Spätzle und Käse einschichten, Butterflöckchen verteilen und kurz schmelzen lassen. Mit gerösteten Zwiebeln und Schnittlauch servieren.",
+    tags: ["Pasta", "Vegetarisch", "Klassiker"],
+  },
 ];
 
 // ============================================================
@@ -263,7 +443,7 @@ function openShoppingMode() {
       <div class="rec-group">
         <div class="shop-cat"><span>${escapeHtml(cat)}</span><span class="rec-group-count">${items.filter((i) => i.done).length}/${items.length}</span></div>
         ${items.map((i) => `
-          <div class="shop-item ${i.done ? "done" : ""}" data-name="${escapeHtml(i.name)}">
+          <div class="shop-item ${i.done ? "done" : ""}" data-key="${escapeHtml(itemKey(i))}">
             <span class="shop-check ${i.done ? "on" : ""}">${i.done ? ICONS.check : ""}</span>
             <span class="shop-name">${escapeHtml(i.name)}</span>
             <span class="shop-amount">${formatAmount(i)}</span>
@@ -272,7 +452,7 @@ function openShoppingMode() {
 
     scroll.querySelectorAll(".shop-item").forEach((row) => {
       row.addEventListener("click", () => {
-        const item = currentListItems.find((i) => i.name === row.dataset.name);
+        const item = currentListItems.find((i) => itemKey(i) === row.dataset.key);
         if (item) item.done = !item.done;
         persistCurrentList();
         render();
@@ -310,6 +490,11 @@ async function consumeDoneItems() {
       });
     }
   }
+  const nowIso = new Date().toISOString();
+  state.history.unshift(...done.map((d) => ({ name: d.name, category: d.category || "Sonstiges", amount: d.amount, unit: d.unit || "", date: nowIso })));
+  state.history = state.history.slice(0, 500);
+  writeLS(LS.history, state.history);
+
   currentListItems = currentListItems.filter((i) => !i.done);
   persistCurrentList();
   await persistInventory();
@@ -450,6 +635,16 @@ async function loadAll() {
   state.selectedRecipes = new Set(readLS(LS.selected, []));
   currentListItems = readLS(LS.current, []);
   currentListTitle = readLS(LS.currentTitle, "Einkaufsliste");
+  state.plan = readLS(LS.plan, {});
+  state.history = readLS(LS.history, []);
+  state.favs = new Set(readLS(LS.favs, []));
+  // Verwaiste Plan-Einträge (gelöschte Rezepte) aufräumen
+  for (const iso of Object.keys(state.plan)) {
+    const day = state.plan[iso];
+    for (const meal of ["fruehstueck", "mittag", "abend"]) {
+      if (day[meal] && !state.recipes.some((r) => r.id === day[meal])) delete day[meal];
+    }
+  }
 
   state.user = null;
   state.cloudOk = false;
@@ -520,6 +715,9 @@ function exportData() {
     lists: state.lists,
     current: currentListItems,
     currentTitle: currentListTitle,
+    plan: state.plan,
+    history: state.history,
+    favs: [...state.favs],
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -566,6 +764,9 @@ function importData() {
       }));
       currentListItems = data.current || [];
       currentListTitle = data.currentTitle || "Einkaufsliste";
+      state.plan = data.plan || {};
+      state.history = Array.isArray(data.history) ? data.history : [];
+      state.favs = new Set(Array.isArray(data.favs) ? data.favs : []);
       await persistInventory();
       await persistRecipes();
       await persistLists();
@@ -599,7 +800,9 @@ function printList() {
 const TABS = [
   { id: "bestand", label: "Bestand", icon: ICONS.box },
   { id: "rezepte", label: "Rezepte", icon: ICONS.book },
+  { id: "plan", label: "Plan", icon: ICONS.calendar },
   { id: "einkauf", label: "Einkaufsliste", icon: ICONS.cart },
+  { id: "stats", label: "Statistik", icon: ICONS.chart },
 ];
 
 function renderTabs() {
@@ -610,6 +813,7 @@ function renderTabs() {
     <button class="rec-tab ${state.tab === t.id ? "active" : ""}" data-tab="${t.id}">
       ${t.icon} ${t.label}
       ${t.id === "einkauf" && state.selectedRecipes.size ? `<span class="rec-badge">${state.selectedRecipes.size}</span>` : ""}
+      ${t.id === "plan" && planWeekCount() ? `<span class="rec-badge">${planWeekCount()}</span>` : ""}
     </button>`
   ).join("");
   el.querySelectorAll(".rec-tab").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
@@ -626,6 +830,8 @@ function renderContent() {
   if (!el) return;
   if (state.tab === "bestand") el.innerHTML = renderInventory();
   else if (state.tab === "rezepte") el.innerHTML = renderRecipes();
+  else if (state.tab === "plan") el.innerHTML = renderPlan();
+  else if (state.tab === "stats") el.innerHTML = renderStats();
   else el.innerHTML = renderShopping();
   bindCurrentTab();
 }
@@ -700,7 +906,11 @@ function renderInvRow(item) {
 // ============================================================
 function renderRecipes() {
   const f = state.recipeFilter;
-  const scored = suggestRecipes(state.recipes, state.inventory, f);
+  let scored = suggestRecipes(state.recipes, state.inventory, f);
+  if (f.status === "fav") scored = scored.filter((s) => state.favs.has(s.recipe.id));
+  if (f.sort === "fav") {
+    scored.sort((a, b) => (state.favs.has(b.recipe.id) ? 1 : 0) - (state.favs.has(a.recipe.id) ? 1 : 0) || b.score - a.score);
+  }
   const recipesTotal = state.recipes.length;
   const machbar = scored.filter((s) => s.complete).length;
 
@@ -713,20 +923,24 @@ function renderRecipes() {
           <option value="any" ${f.status === "any" ? "selected" : ""}>Alle</option>
           <option value="complete" ${f.status === "complete" ? "selected" : ""}>Nur machbar (nichts fehlt)</option>
           <option value="missing" ${f.status === "missing" ? "selected" : ""}>Es fehlt etwas</option>
+          <option value="fav" ${f.status === "fav" ? "selected" : ""}>Nur Favoriten</option>
         </select>
         <select id="rec-sort" class="rec-input" style="width: auto;">
           <option value="match" ${f.sort === "match" ? "selected" : ""}>Passend zum Bestand</option>
           <option value="new" ${f.sort === "new" ? "selected" : ""}>Neueste</option>
           <option value="az" ${f.sort === "az" ? "selected" : ""}>A–Z</option>
+          <option value="fav" ${f.sort === "fav" ? "selected" : ""}>Favoriten zuerst</option>
         </select>
       </div>
       ${!state.recipes.length ? `<button class="btn btn-secondary btn-sm" id="btn-seed">${ICONS.spark} Beispielrezepte laden</button>` : ""}
+      <button class="btn btn-secondary btn-sm" id="btn-import-recipe" title="Rezept aus kopiertem Text importieren (wird automatisch geparst)">${ICONS.upload} Aus Text</button>
       <button class="btn btn-lime btn-sm" id="btn-new-recipe">${ICONS.plus} Neues Rezept</button>
     </div>
 
     <div class="rec-kpis">
       <span class="rec-kpi">${recipesTotal} Rezepte</span>
       <span class="rec-kpi">${machbar} machbar mit deinem Bestand</span>
+      <span class="rec-kpi">${ICONS.star} ${state.favs.size} Favoriten</span>
     </div>
 
     ${scored.length ? `<div class="rec-cards">${scored.map(renderRecipeCard).join("")}</div>` : renderEmptyRecipes()}
@@ -752,10 +966,14 @@ function renderRecipeCard(s) {
   const missingChips = s.missing.slice(0, 3).map((m) => `<span class="rec-chip">${escapeHtml(m.name)}</span>`).join("");
   const more = s.missing.length > 3 ? `<span class="rec-chip muted">+${s.missing.length - 3} mehr</span>` : "";
   const selected = state.selectedRecipes.has(r.id);
+  const fav = state.favs.has(r.id);
   return `
     <div class="card rec-recipe ${s.complete ? "ok" : ""}" data-id="${r.id}">
       <div class="rec-recipe-head">
-        <h3 style="font-size: 1rem; font-weight: 600;">${escapeHtml(r.title)}</h3>
+        <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+          <h3 style="font-size: 1rem; font-weight: 600;">${escapeHtml(r.title)}</h3>
+          <button class="rec-icon-btn ${fav ? "fav" : ""}" data-act="fav" title="${fav ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}">${ICONS.star}</button>
+        </div>
         <span class="rec-coverage ${s.complete ? "ok" : ""}" title="${s.have}/${s.total} Zutaten vorhanden">
           ${s.complete ? ICONS.check : ""} ${s.have}/${s.total}
         </span>
@@ -799,6 +1017,8 @@ function renderShopping() {
         <button class="btn btn-lime btn-sm" id="btn-shop-mode" ${total ? "" : "disabled"} title="Große Touch-Buttons zum Abhaken im Laden">${ICONS.cart} Einkaufsmodus</button>
         <button class="btn btn-lime btn-sm" id="btn-recalc">${ICONS.spark} Smart neu berechnen</button>
         <button class="btn btn-secondary btn-sm" id="btn-add-manual">${ICONS.plus} Manuell</button>
+        <button class="btn btn-secondary btn-sm" id="btn-copy-list" title="Liste als Text in die Zwischenablage kopieren">${ICONS.copy} Kopieren</button>
+        ${navigator.share ? `<button class="btn btn-secondary btn-sm" id="btn-share-list">${ICONS.share} Teilen</button>` : ""}
         <button class="btn btn-secondary btn-sm" id="btn-print">${ICONS.print} Drucken</button>
         <button class="btn btn-secondary btn-sm" id="btn-save-list">Speichern</button>
       </div>
@@ -840,11 +1060,11 @@ function renderShopping() {
             <div class="rec-group-head"><span>${escapeHtml(cat)}</span><span class="rec-group-count">${items.length}</span></div>
             <div class="rec-rows">
               ${items.map((i) => `
-                <div class="rec-row ${i.done ? "done" : ""}" data-name="${escapeHtml(i.name)}">
-                  <button class="rec-check ${i.done ? "on" : ""}" data-name="${escapeHtml(i.name)}">${i.done ? ICONS.check : ""}</button>
+                <div class="rec-row ${i.done ? "done" : ""}" data-key="${escapeHtml(itemKey(i))}">
+                  <button class="rec-check ${i.done ? "on" : ""}" data-key="${escapeHtml(itemKey(i))}">${i.done ? ICONS.check : ""}</button>
                   <span class="rec-name" style="${i.done ? "text-decoration: line-through; color: var(--text-muted);" : ""}">${escapeHtml(i.name)}</span>
                   <span class="rec-amount">${formatAmount(i)}</span>
-                  <button class="rec-icon-btn danger" data-remove="${escapeHtml(i.name)}" title="Entfernen">${ICONS.trash}</button>
+                  <button class="rec-icon-btn danger" data-key="${escapeHtml(itemKey(i))}" data-remove title="Entfernen">${ICONS.trash}</button>
                 </div>`).join("")}
             </div>
           </div>`).join("")}
@@ -877,6 +1097,8 @@ function renderShopping() {
 function bindCurrentTab() {
   if (state.tab === "bestand") bindInventory();
   else if (state.tab === "rezepte") bindRecipes();
+  else if (state.tab === "plan") bindPlan();
+  else if (state.tab === "stats") bindStats();
   else bindShopping();
 }
 
@@ -920,6 +1142,7 @@ function bindInvRows() {
 function bindRecipes() {
   $("btn-new-recipe")?.addEventListener("click", () => openRecipeModal());
   $("btn-seed")?.addEventListener("click", seedRecipes);
+  $("btn-import-recipe")?.addEventListener("click", () => openImportRecipeModal());
   const f = state.recipeFilter;
   const q = $("rec-search");
   if (q) q.addEventListener("input", () => { f.query = q.value; rerenderRecipes(); });
@@ -933,6 +1156,12 @@ function bindRecipes() {
   document.querySelectorAll("#app-content .rec-recipe").forEach((card) => {
     const id = card.dataset.id;
     card.querySelector('[data-act="view"]')?.addEventListener("click", () => openRecipeModal(id));
+    card.querySelector('[data-act="fav"]')?.addEventListener("click", () => {
+      if (state.favs.has(id)) { state.favs.delete(id); toast("Aus Favoriten entfernt.", "info"); }
+      else { state.favs.add(id); toast("Zu Favoriten hinzugefügt.", "success"); }
+      writeLS(LS.favs, [...state.favs]);
+      rerenderRecipes();
+    });
     card.querySelector('[data-act="toggleshop"]')?.addEventListener("click", () => {
       if (state.selectedRecipes.has(id)) state.selectedRecipes.delete(id);
       else state.selectedRecipes.add(id);
@@ -966,6 +1195,8 @@ function bindShopping() {
   });
 
   $("btn-add-manual")?.addEventListener("click", () => openAddModal(true));
+  $("btn-copy-list")?.addEventListener("click", copyListText);
+  $("btn-share-list")?.addEventListener("click", shareList);
   $("btn-print")?.addEventListener("click", printList);
 
   $("btn-save-list")?.addEventListener("click", async () => {
@@ -1003,7 +1234,7 @@ function bindShopping() {
 
   document.querySelectorAll("#app-content .rec-check").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const item = currentListItems.find((i) => i.name === btn.dataset.name);
+      const item = currentListItems.find((i) => itemKey(i) === btn.dataset.key);
       if (item) item.done = !item.done;
       persistCurrentList();
       renderContent();
@@ -1012,7 +1243,7 @@ function bindShopping() {
 
   document.querySelectorAll("#app-content [data-remove]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      currentListItems = currentListItems.filter((i) => i.name !== btn.dataset.remove);
+      currentListItems = currentListItems.filter((i) => itemKey(i) !== btn.dataset.key);
       persistCurrentList();
       renderContent();
     });
@@ -1058,6 +1289,7 @@ function bindShopping() {
 // Modal: Artikel hinzufügen (manuell / Kamera / Mikro)
 // ============================================================
 let addModalCandidates = [];
+let installPrompt = null;
 
 function openAddModal(forShoppingList = false) {
   addModalCandidates = [];
@@ -1577,6 +1809,481 @@ function openModelInfo() {
 }
 
 // ============================================================
+// WOCHENPLAN (lokal)
+// ============================================================
+// Eindeutiger Schlüssel für Listeneinträge (Name + Einheit), damit
+// „2 EL Milch“ und „1 l Milch“ nicht durcheinander abgehakt werden.
+function itemKey(i) {
+  return `${i.name}|${i.unit || ""}`;
+}
+
+function isoDateLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Montag-basierte Kalenderwoche (ISO 8601)
+function weekNumber(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+  return 1 + Math.round((date - firstThursday) / (7 * 24 * 3600 * 1000));
+}
+
+function weekDates(offset) {
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7; // Montag = 0
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dow + offset * 7);
+  monday.setHours(12, 0, 0, 0);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
+function recipeById(id) {
+  return state.recipes.find((r) => r.id === id);
+}
+
+function planSlotsOf(week) {
+  const mealLabels = ["fruehstueck", "mittag", "abend"];
+  return week.flatMap((d) => {
+    const iso = isoDateLocal(d);
+    const day = state.plan[iso] || {};
+    return mealLabels.map((meal) => ({ iso, date: d, meal, recipeId: day[meal] || null }));
+  });
+}
+
+function planWeekCount() {
+  const week = weekDates(state.planWeekOffset);
+  return planSlotsOf(week).filter((s) => s.recipeId).length;
+}
+
+function renderPlan() {
+  const week = weekDates(state.planWeekOffset);
+  const kw = weekNumber(week[0]);
+  const todayIso = isoDateLocal(new Date());
+  const slots = planSlotsOf(week);
+  const mealLabels = { fruehstueck: "Frühstück", mittag: "Mittag", abend: "Abend" };
+  const totalPlanned = slots.filter((s) => s.recipeId).length;
+  const daysDone = week.filter((d) => state.plan[isoDateLocal(d)]?.done).length;
+
+  return `
+    <div class="rec-toolbar">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <button class="btn btn-secondary btn-sm" id="plan-prev" title="Vorherige Woche">←</button>
+        <span class="rec-kpi" style="font-size: 0.85rem;">Kalenderwoche ${kw}</span>
+        <button class="btn btn-secondary btn-sm" id="plan-next" title="Nächste Woche">→</button>
+        <button class="btn btn-secondary btn-sm" id="plan-today">Diese Woche</button>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <span class="rec-kpi">${totalPlanned} geplante Mahlzeiten</span>
+        <span class="rec-kpi">${daysDone}/7 Tage erledigt</span>
+        <button class="btn btn-lime btn-sm" id="btn-plan-shop" ${totalPlanned ? "" : "disabled"} title="Fehlende Zutaten aller geplanten Rezepte in die Einkaufsliste übernehmen">${ICONS.cart} Plan → Einkaufsliste</button>
+      </div>
+    </div>
+
+    <div class="plan-grid">
+      ${week.map((d) => {
+        const iso = isoDateLocal(d);
+        const day = state.plan[iso] || {};
+        const isToday = iso === todayIso;
+        return `
+        <div class="plan-day ${isToday ? "today" : ""} ${day.done ? "done" : ""}">
+          <div class="plan-day-head">
+            <div>
+              <div class="plan-weekday">${d.toLocaleDateString("de-DE", { weekday: "short" })}</div>
+              <div class="plan-date">${d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</div>
+            </div>
+            <button class="plan-done-btn ${day.done ? "on" : ""}" data-day="${iso}" title="Tag als erledigt markieren">${ICONS.check}</button>
+          </div>
+          ${["fruehstueck", "mittag", "abend"].map((meal) => {
+            const rid = day[meal];
+            const r = rid ? recipeById(rid) : null;
+            return `
+            <div class="plan-meal">${mealLabels[meal]}</div>
+            <button class="plan-slot ${r ? "filled" : ""}" data-day="${iso}" data-meal="${meal}">
+              ${r ? `${ICONS.book} ${escapeHtml(r.title)}` : `${ICONS.plus} Planen`}
+            </button>`;
+          }).join("")}
+        </div>`;
+      }).join("")}
+    </div>
+
+    ${totalPlanned === 0 ? `
+      <div class="card rec-empty" style="margin-top: 20px;">
+        ${ICONS.calendar}
+        <h3>Noch nichts geplant</h3>
+        <p style="color: var(--text-secondary); max-width: 480px; margin: 0 auto;">Wähle für jeden Tag bis zu drei Rezepte (Frühstück, Mittag, Abend). Aus dem Plan lässt sich die komplette Woche per Klick in eine Einkaufsliste verwandeln.</p>
+      </div>` : ""}
+  `;
+}
+
+function bindPlan() {
+  $("plan-prev")?.addEventListener("click", () => { state.planWeekOffset -= 1; renderTabs(); renderContent(); });
+  $("plan-next")?.addEventListener("click", () => { state.planWeekOffset += 1; renderTabs(); renderContent(); });
+  $("plan-today")?.addEventListener("click", () => { state.planWeekOffset = 0; renderTabs(); renderContent(); });
+
+  document.querySelectorAll("#app-content .plan-slot").forEach((b) => {
+    b.addEventListener("click", () => openPlanPicker(b.dataset.day, b.dataset.meal));
+  });
+  document.querySelectorAll("#app-content .plan-done-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      const iso = b.dataset.day;
+      state.plan[iso] = state.plan[iso] || {};
+      state.plan[iso].done = !state.plan[iso].done;
+      writeLS(LS.plan, state.plan);
+      renderContent();
+    });
+  });
+  $("btn-plan-shop")?.addEventListener("click", () => {
+    const week = weekDates(state.planWeekOffset);
+    const ids = new Set();
+    for (const d of week) {
+      const day = state.plan[isoDateLocal(d)] || {};
+      for (const meal of ["fruehstueck", "mittag", "abend"]) if (day[meal]) ids.add(day[meal]);
+    }
+    const planned = state.recipes.filter((r) => ids.has(r.id));
+    if (!planned.length) { toast("In dieser Woche ist nichts geplant.", "warning"); return; }
+    const grouped = buildShoppingList(planned, state.inventory);
+    currentListItems = grouped.flatMap(([, items]) => items);
+    currentListTitle = `Wochenplan KW ${weekNumber(week[0])}`;
+    persistCurrentList();
+    toast(`Einkaufsliste aus ${planned.length} geplanten Rezepten erstellt (${currentListItems.length} Positionen).`, "success");
+    state.tab = "einkauf";
+    renderTabs();
+    renderContent();
+  });
+}
+
+function openPlanPicker(iso, meal) {
+  const mealLabels = { fruehstueck: "Frühstück", mittag: "Mittag", abend: "Abend" };
+  const overlay = document.createElement("div");
+  overlay.className = "rec-overlay";
+  overlay.innerHTML = `
+    <div class="rec-modal" style="max-width: 480px;">
+      <div class="rec-modal-head">
+        <h3 style="font-size: 1rem;">${escapeHtml(iso)} · ${mealLabels[meal]}</h3>
+        <button class="rec-icon-btn" data-close>${ICONS.x}</button>
+      </div>
+      <input id="picker-search" class="rec-input" placeholder="Rezept suchen…" style="width: 100%; margin-bottom: 12px;" />
+      <div id="picker-list" style="max-height: 320px; overflow-y: auto; display:flex; flex-direction:column; gap:6px;"></div>
+      <div class="rec-modal-foot">
+        <button class="btn btn-secondary btn-sm" data-clear ${state.plan[iso]?.[meal] ? "" : "disabled"}>Entfernen</button>
+        <button class="btn btn-secondary btn-sm" data-close2>Schließen</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const listEl = overlay.querySelector("#picker-list");
+
+  const renderList = (q) => {
+    const qn = q.trim().toLowerCase();
+    const recipes = state.recipes
+      .filter((r) => !qn || (r.title + " " + (r.tags || []).join(" ")).toLowerCase().includes(qn))
+      .sort((a, b) => {
+        const fa = state.favs.has(a.id) ? 1 : 0;
+        const fb = state.favs.has(b.id) ? 1 : 0;
+        return fb - fa || a.title.localeCompare(b.title, "de");
+      });
+    listEl.innerHTML = recipes.length
+      ? recipes.map((r) => {
+          const current = state.plan[iso]?.[meal] === r.id;
+          return `
+          <button class="plan-pick ${current ? "current" : ""}" data-id="${r.id}">
+            <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(r.title)}</span>
+            ${state.favs.has(r.id) ? `<span style="color: var(--amber);">${ICONS.star}</span>` : ""}
+            ${current ? `<span style="color: var(--lime); font-size: 0.72rem;">aktuell</span>` : ""}
+          </button>`;
+        }).join("")
+      : `<p style="color: var(--text-muted); font-size: 0.82rem; padding: 8px 4px;">Keine Rezepte gefunden.</p>`;
+    listEl.querySelectorAll("[data-id]").forEach((b) => {
+      b.addEventListener("click", () => {
+        state.plan[iso] = state.plan[iso] || {};
+        state.plan[iso][meal] = b.dataset.id;
+        writeLS(LS.plan, state.plan);
+        overlay.remove();
+        renderTabs();
+        renderContent();
+        toast("Geplant.", "success");
+      });
+    });
+  };
+  renderList("");
+
+  overlay.querySelector("#picker-search").addEventListener("input", (e) => renderList(e.target.value));
+  overlay.querySelector("[data-clear]").addEventListener("click", () => {
+    state.plan[iso] = state.plan[iso] || {};
+    delete state.plan[iso][meal];
+    writeLS(LS.plan, state.plan);
+    overlay.remove();
+    renderTabs();
+    renderContent();
+  });
+  const close = () => overlay.remove();
+  overlay.querySelector("[data-close]").addEventListener("click", close);
+  overlay.querySelector("[data-close2]").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+}
+
+// ============================================================
+// STATISTIK (lokal – Einkaufs-Historie)
+// ============================================================
+function renderStats() {
+  const h = state.history;
+  const counts = new Map();
+  const cats = new Map();
+  for (const e of h) {
+    counts.set(e.name, (counts.get(e.name) || 0) + 1);
+    cats.set(e.category || "Sonstiges", (cats.get(e.category || "Sonstiges") || 0) + 1);
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const topCats = [...cats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const maxCount = top.length ? top[0][1] : 1;
+  const maxCat = topCats.length ? topCats[0][1] : 1;
+  const recent = h.slice(0, 10);
+  const uniqueItems = new Set(h.map((e) => e.name)).size;
+
+  return `
+    <div class="rec-kpis">
+      <span class="rec-kpi">🛒 ${h.length} Einkäufe erfasst</span>
+      <span class="rec-kpi">${uniqueItems} verschiedene Artikel</span>
+      <span class="rec-kpi">📦 ${state.inventory.length} Artikel im Bestand</span>
+      <span class="rec-kpi">📖 ${state.recipes.length} Rezepte</span>
+    </div>
+    ${h.length ? `
+      <div class="rec-group">
+        <div class="rec-group-head"><span>Am häufigsten gekauft</span></div>
+        <div class="card" style="padding: 16px 18px;">
+          ${top.map(([name, n]) => `
+            <div class="stat-row">
+              <span class="stat-name">${escapeHtml(name)}</span>
+              <div class="stat-bar"><div style="width: ${Math.max(6, (n / maxCount) * 100)}%"></div></div>
+              <span class="stat-count">${n}×</span>
+            </div>`).join("")}
+        </div>
+      </div>
+      <div class="rec-group">
+        <div class="rec-group-head"><span>Kategorien</span></div>
+        <div class="card" style="padding: 16px 18px;">
+          ${topCats.map(([cat, n]) => `
+            <div class="stat-row">
+              <span class="stat-name">${escapeHtml(cat)}</span>
+              <div class="stat-bar bar-amber"><div style="width: ${Math.max(6, (n / maxCat) * 100)}%"></div></div>
+              <span class="stat-count">${n}×</span>
+            </div>`).join("")}
+        </div>
+      </div>
+      <div class="rec-group">
+        <div class="rec-group-head"><span>Letzte Einkäufe</span></div>
+        <div class="rec-rows">
+          ${recent.map((e) => `
+            <div class="rec-row">
+              <span class="rec-name">${escapeHtml(e.name)}</span>
+              <span class="rec-amount">${formatAmount(e)}</span>
+              <span class="rec-amount" style="color: var(--text-muted);">${new Date(e.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</span>
+            </div>`).join("")}
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top: 8px;">
+        <button class="btn btn-secondary btn-sm" id="btn-clear-history">Statistik löschen</button>
+      </div>
+    ` : `
+      <div class="card rec-empty">
+        ${ICONS.chart}
+        <h3>Noch keine Statistik</h3>
+        <p style="color: var(--text-secondary); max-width: 460px; margin: 0 auto;">Sobald du im Einkaufsmodus Artikel abhakst und in den Bestand übernimmst, werden deine Einkäufe hier lokal ausgewertet – völlig ohne Cloud.</p>
+      </div>`}
+  `;
+}
+
+function bindStats() {
+  $("btn-clear-history")?.addEventListener("click", async () => {
+    if (!(await confirmModal("Gesamte Einkaufs-Statistik löschen? Die Bestandsdaten bleiben erhalten."))) return;
+    state.history = [];
+    writeLS(LS.history, []);
+    renderContent();
+    toast("Statistik gelöscht.", "success");
+  });
+}
+
+// ============================================================
+// Liste kopieren / teilen
+// ============================================================
+function fallbackCopy(text) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function copyListText() {
+  if (!currentListItems.length) { toast("Liste ist leer.", "warning"); return; }
+  const text = [
+    `🛒 ${currentListTitle}`,
+    ...currentListItems.map((i) => `${i.done ? "[x]" : "[ ]"} ${formatAmount(i)} ${i.name}`),
+    "",
+    "Erstellt mit der xSyna Rezeptliste (lokal & offline)",
+  ].join("\n");
+  const done = () => toast("Liste in die Zwischenablage kopiert.", "success");
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => { if (fallbackCopy(text)) done(); });
+  } else {
+    fallbackCopy(text);
+    done();
+  }
+}
+
+async function shareList() {
+  if (!currentListItems.length) { toast("Liste ist leer.", "warning"); return; }
+  const text = currentListItems.map((i) => `${i.done ? "[x]" : "[ ]"} ${formatAmount(i)} ${i.name}`).join("\n");
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: currentListTitle, text });
+      toast("Geteilt.", "success");
+    } catch { /* abgebrochen */ }
+  } else {
+    copyListText();
+  }
+}
+
+// ============================================================
+// Rezept aus Text importieren (wird automatisch geparst)
+// ============================================================
+function parseRecipeImport(text) {
+  const lines = String(text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return null;
+  let idx = 0;
+  const portionsMatch = lines[0].match(/^(\d+(?:[.,]\d+)?)\s*(Portionen?|Personen?)$/i);
+  if (portionsMatch) idx = 1;
+  const title = (lines[idx] || "Unbenanntes Rezept").slice(0, 80);
+  const ingredients = [];
+  const instructions = [];
+  let servings = 2;
+
+  for (let i = idx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    const pm = line.match(/^(\d+(?:[.,]\d+)?)\s*(Portionen?|Personen?)$/i);
+    if (pm) { servings = Math.max(1, Math.round(Number(pm[1].replace(",", ".")))); continue; }
+    if (/^(zubereitung|anleitung|rezept|zutaten)\s*:?$/i.test(line)) continue;
+    const isStep = /^\d+[.)]\s/.test(line);
+    const item = parseLine(line);
+    const known = item.confidence >= 0.85;
+    const isIngredient =
+      !isStep &&
+      (/^\d/.test(line) ||
+        /^(ein|eine|einen|einem|einer|halb|halbe|halbes|viertel|zwei|drei|vier|fünf|funf|sechs|sieben|acht|neun|zehn|anderthalb|eineinhalb)\b/i.test(line) ||
+        known);
+    if (isIngredient && item.name && item.name.length >= 2) {
+      ingredients.push({ name: item.name, amount: item.amount, unit: item.unit, category: item.category });
+    } else {
+      instructions.push(line);
+    }
+  }
+
+  const merged = mergeItems(ingredients);
+  return {
+    id: uuid(),
+    title,
+    servings,
+    ingredients: merged,
+    instructions: instructions.join("\n"),
+    tags: [],
+    is_public: false,
+    created_at: new Date().toISOString(),
+  };
+}
+
+function openImportRecipeModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "rec-overlay";
+  overlay.innerHTML = `
+    <div class="rec-modal rec-modal-lg">
+      <div class="rec-modal-head">
+        <h3 style="font-size: 1rem;">${ICONS.upload} Rezept aus Text importieren</h3>
+        <button class="rec-icon-btn" data-close>${ICONS.x}</button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 12px;">Erste Zeile = Titel. Zeilen mit Mengen oder bekannten Zutaten werden automatisch als Zutaten erkannt, alles andere landet in der Zubereitung.</p>
+      <textarea id="import-recipe-text" class="rec-input" rows="10" placeholder="Spaghetti Carbonara&#10;2 Portionen&#10;&#10;200 g Spaghetti&#10;100 g Speck&#10;2 Eier&#10;50 g Parmesan&#10;Pfeffer&#10;&#10;Spaghetti kochen. Speck knusprig braten. Eier mit Parmesan verquirlen und unter die heißen Nudeln heben."></textarea>
+      <div class="rec-modal-foot">
+        <button class="btn btn-secondary btn-sm" data-cancel>Abbrechen</button>
+        <button class="btn btn-lime btn-sm" id="btn-do-import">${ICONS.spark} Parsen & speichern</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector("[data-close]").addEventListener("click", close);
+  overlay.querySelector("[data-cancel]").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector("#btn-do-import").addEventListener("click", async () => {
+    const text = overlay.querySelector("#import-recipe-text").value;
+    const recipe = parseRecipeImport(text);
+    if (!recipe) { toast("Kein gültiges Rezept gefunden – Titel und Zutaten fehlen.", "error"); return; }
+    state.recipes.unshift(recipe);
+    await persistRecipes();
+    close();
+    renderContent();
+    toast(`Rezept „${recipe.title}“ importiert (${recipe.ingredients.length} Zutaten).`, "success");
+  });
+}
+
+// ============================================================
+// Willkommens-Modal (einmalig)
+// ============================================================
+function maybeShowWelcome() {
+  if (localStorage.getItem("xsynarec_welcome_v1")) return;
+  const overlay = document.createElement("div");
+  overlay.className = "rec-overlay";
+  overlay.innerHTML = `
+    <div class="rec-modal" style="max-width: 460px;">
+      <div class="rec-modal-head">
+        <h3 style="font-size: 1.05rem;">${ICONS.spark} Willkommen in deiner Rezeptliste</h3>
+        <button class="rec-icon-btn" data-close>${ICONS.x}</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-top: 8px; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6;">
+        <div>🔒 <b style="color: var(--text);">Kein Account nötig</b> – die App läuft komplett standalone und speichert alles lokal auf diesem Gerät.</div>
+        <div>📴 <b style="color: var(--text);">100 % offline</b> – Bestand, Rezepte, Einkaufslisten und OCR funktionieren ohne Internet.</div>
+        <div>📲 <b style="color: var(--text);">Als App installieren</b> – nutze „Zum Home-Bildschirm“ (iOS) oder „Installieren“ (Android/Desktop). ${window.matchMedia("(display-mode: standalone)").matches ? "Du bist bereits in der App." : ""}</div>
+        <div>🚪 <b style="color: var(--text);">Kein Weg zurück</b> – die App hat keine Links zur Website. Installiert bleibt man in der App.</div>
+        <div>💾 <b style="color: var(--text);">Sichern</b> – über „Export“ im Bestand erstellst du jederzeit ein Backup deiner Daten.</div>
+      </div>
+      <div class="rec-modal-foot">
+        <button class="btn btn-secondary btn-sm" data-close>Schließen</button>
+        <button class="btn btn-lime btn-sm" id="welcome-install" style="${installPrompt ? "" : "display:none;"}">📲 Installieren</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => { overlay.remove(); localStorage.setItem("xsynarec_welcome_v1", "1"); };
+  overlay.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", close));
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector("#welcome-install")?.addEventListener("click", async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    installPrompt = null;
+    close();
+  });
+}
+
+// ============================================================
 // Init
 // ============================================================
 async function init() {
@@ -1593,6 +2300,7 @@ async function init() {
   renderTabs();
   renderContent();
   renderStatus();
+  maybeShowWelcome();
 
   supabase.auth.onAuthStateChange(() => {
     loadAll().then(() => {
@@ -1612,6 +2320,46 @@ async function init() {
   window.addEventListener("offline", () => {
     renderStatus();
     toast("Offline – Änderungen werden lokal gespeichert.", "warning");
+  });
+
+  // Install-Prompt (PWA) – zeigt den „Installieren“-Button im Header
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    installPrompt = e;
+    const btn = $("btn-install");
+    if (btn) {
+      btn.style.display = "inline-flex";
+      btn.addEventListener("click", async () => {
+        if (!installPrompt) return;
+        installPrompt.prompt();
+        await installPrompt.userChoice;
+        installPrompt = null;
+        btn.style.display = "none";
+      });
+    }
+  });
+  window.addEventListener("appinstalled", () => {
+    installPrompt = null;
+    const b = $("btn-install");
+    if (b) b.style.display = "none";
+    toast("App installiert. 🎉", "success");
+  });
+
+  // PWA-Falle (zusätzliche Absicherung): Klicks auf gleichnamige
+  // Links, die aus der App herausführen, werden abgefangen.
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a");
+    if (!a) return;
+    const href = a.getAttribute("href") || "";
+    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+    try {
+      const url = new URL(a.href, location.href);
+      if (url.origin === location.origin && !url.pathname.startsWith("/recipe-list")) {
+        e.preventDefault();
+        history.replaceState(null, "", "/recipe-list/");
+        toast("Du bist in der Rezeptliste – es gibt keinen Weg zurück zur Website.", "warning");
+      }
+    } catch { /* ignore */ }
   });
 }
 

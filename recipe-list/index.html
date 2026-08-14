@@ -550,6 +550,37 @@
         transition: all var(--transition);
       }
       .rec-suggest-chip:hover { color: var(--lime); border-color: rgba(163, 230, 53, 0.5); }
+      .rec-icon-btn.fav { color: var(--amber); border-color: rgba(251, 191, 36, 0.45); }
+
+      /* ---------- Wochenplan ---------- */
+      .plan-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+      .plan-day { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; }
+      .plan-day.today { border-color: var(--lime); box-shadow: 0 0 0 1px rgba(163, 230, 53, 0.2); }
+      .plan-day.done { opacity: 0.72; }
+      .plan-day-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+      .plan-weekday { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text); }
+      .plan-day.today .plan-weekday { color: var(--lime); }
+      .plan-date { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+      .plan-done-btn { width: 26px; height: 26px; border-radius: var(--radius); border: 1px solid var(--border); background: transparent; color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); }
+      .plan-done-btn.on { background: var(--lime); border-color: var(--lime); color: #000; }
+      .plan-meal { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-top: 8px; }
+      .plan-slot { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text-secondary); padding: 8px 10px; font-size: 0.76rem; margin-top: 4px; cursor: pointer; transition: all var(--transition); }
+      .plan-slot:hover { border-color: var(--lime); color: var(--text); }
+      .plan-slot.filled { border-style: solid; border-color: rgba(163, 230, 53, 0.35); color: var(--text); background: var(--lime-soft); }
+      .plan-pick { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 9px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 0.84rem; cursor: pointer; transition: all var(--transition); }
+      .plan-pick:hover { border-color: var(--lime); }
+      .plan-pick.current { border-color: var(--lime); background: var(--lime-soft); }
+      @media (max-width: 900px) { .plan-grid { grid-template-columns: 1fr; } }
+
+      /* ---------- Statistik ---------- */
+      .stat-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 0.82rem; }
+      .stat-row:last-child { margin-bottom: 0; }
+      .stat-name { width: 190px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+      .stat-bar { flex: 1; height: 8px; background: var(--surface); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+      .stat-bar > div { height: 100%; background: var(--lime); border-radius: 999px; min-width: 4px; }
+      .stat-bar.bar-amber > div { background: var(--amber); }
+      .stat-count { width: 42px; text-align: right; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); }
+      @media (max-width: 560px) { .stat-name { width: 120px; } }
     </style>
   </head>
   <body>
@@ -574,6 +605,7 @@
           <div class="app-title">Rezeptliste</div>
           <div class="app-sub">Standalone · lokal · offline</div>
         </div>
+        <button id="btn-install" class="btn btn-lime btn-sm" style="margin-left: auto; display: none;">📲 Installieren</button>
       </div>
     </header>
 
@@ -607,6 +639,6 @@
       </div>
     </footer>
 
-    <script type="module" src="/src/recipe-list.js?v=2"></script>
+    <script type="module" src="/src/recipe-list.js?v=3"></script>
   </body>
 </html>

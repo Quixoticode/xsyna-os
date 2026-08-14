@@ -20,7 +20,7 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
 ├── docs/index.html            # Documentation
 ├── internal-services/index.html # Dashboard / admin panel
 ├── track/index.html           # Public order/commission tracking
-├── recipe-list/index.html     # Rezeptliste web app (Bestand/Rezepte/Einkauf)
+├── recipe-list/index.html     # Rezeptliste web app (Bestand/Rezepte/Plan/Einkauf/Statistik)
 ├── recipe-list/manifest.webmanifest # Eigenes PWA-Manifest (Scope /recipe-list/)
 ├── recipe-list/sw.js          # App-Service-Worker: Offline-Cache + PWA-Falle
 ├── recipe-list-icon.svg       # Rezeptliste app icon
@@ -51,11 +51,25 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
   Session existiert (lazy, mit Backoff – die App startet auch offline/CDN-los).
 - **PWA-Falle**: Die App hat keine Links zur Website. Ihr eigener Service
   Worker (`/recipe-list/sw.js`, Scope `/recipe-list/`) leitet jede Navigation
-  innerhalb der Domain zurück zur App – installiert ist man in der App gefangen.
-- Installierbar als eigenständige App (eigenes Manifest, `display: standalone`).
-- Einkaufsmodus mit großen Touch-Flächen zum Abhaken + „Gekauft → Bestand“.
-- Beispielrezepte per Klick ladbar (Seed-Daten, werden durch die Synaptic-
-  Engine normalisiert). Export/Import inkl. Migration alter Backup-Formate.
+  innerhalb der Domain zurück zur App; zusätzlich fängt die App Klicks auf
+  gleichnamige Links ab. Installiert ist man in der App gefangen.
+- Installierbar als eigenständige App (eigenes Manifest, `display: standalone`),
+  inkl. „Installieren“-Button (beforeinstallprompt) und Einmal-Willkommens-Info.
+- **Bestand**: manuell, per Kamera (OCR) oder Sprache erfassen; Mengen/Labels
+  werden von der Synaptic-Engine normalisiert; Suche & Kategorie-Gruppierung.
+- **Rezepte**: ~34 Beispielrezepte (Seed-Daten), eigene Rezepte, Portionen-
+  Skalierung, Favoriten (⭐), Filter nach Bestand/Zutat/Favorit und Import
+  eines Rezepts aus kopiertem Text (wird automatisch geparst).
+- **Wochenplan**: Rezepte für Frühstück/Mittag/Abend pro Tag planen, Woche für
+  Woche navigieren, Tage als erledigt markieren und den kompletten Plan in eine
+  Einkaufsliste verwandeln (nur fehlende Zutaten).
+- **Einkaufsmodus**: große Touch-Flächen zum Abhaken im Laden, Fortschritts-
+  balken, „Gekauft → Bestand“ übernehmen; Liste kopieren/teilen/drucken und
+  als Vorlage speichern.
+- **Statistik** (lokal): Einkaufs-Historie, meistgekaufte Artikel, Kategorie-
+  Verteilung und letzte Einkäufe.
+- Export/Import inkl. Migration alter Backup-Formate (übernimmt auch Plan,
+  Favoriten und Statistik).
 
 ## Development
 
