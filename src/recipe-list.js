@@ -30,6 +30,7 @@ import {
   searchLabels,
   CATEGORIES,
 } from "./js/synaptic.js";
+import { extractRecipeFromHtml, generateRecipeSuggestions } from "./js/web-recipes.js";
 
 const $ = (id) => document.getElementById(id);
 const LS = {
@@ -54,6 +55,7 @@ const state = {
   tab: "bestand",
   hideDone: false,
   recipeFilter: { query: "", ingredient: "", status: "any", sort: "match" },
+  currentSuggestions: [],
   plan: {},
   history: [],
   favs: new Set(),
@@ -565,6 +567,8 @@ function mapRecipe(r) {
     tags: r.tags || [],
     is_public: !!r.is_public,
     created_at: r.created_at,
+    source: r.source || "manual",
+    sourceUrl: r.sourceUrl || "",
   };
 }
 
@@ -579,6 +583,8 @@ function normalizeRecipe(r) {
     tags: Array.isArray(r.tags) ? r.tags : [],
     is_public: !!r.is_public,
     created_at: r.created_at || new Date().toISOString(),
+    source: r.source || "manual",
+    sourceUrl: r.sourceUrl || "",
   };
 }
 
@@ -797,6 +803,352 @@ function printList() {
 // ============================================================
 // Tabs
 // ============================================================
+// ============================================================
+// Rezept-Import von Websites & Synaptic-Vorschläge (UI)
+// ------------------------------------------------------------
+// • „Von Website“: Rezept-URL oder HTML importieren. Die
+//   Synaptic-Engine extrahiert Titel, Zutaten und Zubereitung
+//   (JSON-LD/Schema.org bevorzugt, sonst DOM-Heuristik).
+// • „Synaptic-Vorschläge“: aus dem aktuellen Bestand generierte
+//   Rezepte, die direkt gespeichert oder zur Einkaufsliste
+//   hinzugefügt werden können.
+// ============================================================
+
+let importCandidates = [];
+let importSelectedIdx = -1;
+
+const CORS_PROXIES = [
+  (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+  (u) => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
+];
+
+async function fetchUrlText(url) {
+  let lastErr = null;
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const timeout = typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined;
+      const res = await fetch(proxy(url), { signal: timeout });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim().length > 200) return text;
+      }
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("Alle Import-Proxys fehlgeschlagen.");
+}
+
+// Nach jedem Rendern des Rezepte-Tabs: URL-Button einfügen und
+// Synaptic-Vorschläge berechnen + einhängen (idempotent).
+function ensureRecipeExtras() {
+  if (!$("btn-import-url")) {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-secondary btn-sm";
+    btn.id = "btn-import-url";
+    btn.title = "Rezept von einer Website importieren (URL oder HTML)";
+    btn.innerHTML = `${ICONS.link} Von Website`;
+    btn.addEventListener("click", openUrlImportModal);
+    const target = $("btn-new-recipe");
+    if (target && target.parentNode) target.parentNode.insertBefore(btn, target);
+    else document.querySelector("#app-content .rec-toolbar")?.appendChild(btn);
+  }
+
+  const old = document.getElementById("sugg-section");
+  if (old) old.remove();
+  state.currentSuggestions = state.inventory.length >= 2 ? generateRecipeSuggestions(state.inventory, { limit: 4 }) : [];
+  if (!state.currentSuggestions.length) return;
+
+  const wrap = document.createElement("div");
+  wrap.id = "sugg-section";
+  wrap.innerHTML = renderSuggestionSection(state.currentSuggestions);
+  const cards = document.querySelector("#app-content .rec-cards");
+  if (cards) cards.before(wrap);
+  else document.querySelector("#app-content")?.appendChild(wrap);
+  bindSuggestionActions();
+}
+
+// bindRecipes wird bei jedem Rendern des Rezepte-Tabs aufgerufen
+// (Tab-Wechsel, Filter, Import …) – hier hängen wir die Extras an.
+const __origBindRecipes = bindRecipes;
+bindRecipes = function () {
+  __origBindRecipes();
+  ensureRecipeExtras();
+};
+
+function renderSuggestionSection(suggestions) {
+  return `
+    <div class="rec-sugg" style="margin-bottom: 30px;">
+      <div class="rec-group-head" style="margin-bottom: 10px;">
+        <span style="display: inline-flex; align-items: center; gap: 6px;">${ICONS.spark} Synaptic-Vorschläge aus deinem Bestand</span>
+        <span class="rec-group-count">${suggestions.length} ${suggestions.length === 1 ? "Idee" : "Ideen"}</span>
+      </div>
+      <div class="rec-cards">${suggestions.map(renderSuggestionCard).join("")}</div>
+    </div>
+  `;
+}
+
+function renderSuggestionCard(s) {
+  const r = s.recipe;
+  const missingChips = s.missing.slice(0, 3).map((m) => `<span class="rec-chip">${escapeHtml(m.name)}</span>`).join("");
+  const more = s.missing.length > 3 ? `<span class="rec-chip muted">+${s.missing.length - 3} mehr</span>` : "";
+  return `
+    <div class="card rec-recipe rec-sugg-card" data-sugg="${escapeHtml(r.id)}">
+      <div class="rec-recipe-head">
+        <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+          <span class="rec-sugg-badge" title="Von Synaptic FM aus deinem Bestand generiert">${ICONS.spark}</span>
+          <h3 style="font-size: 1rem; font-weight: 600;">${escapeHtml(r.title)}</h3>
+        </div>
+        <span class="rec-coverage ${s.complete ? "ok" : ""}" title="${s.have}/${s.total} Zutaten im Bestand">
+          ${s.complete ? ICONS.check : ""} ${s.have}/${s.total}
+        </span>
+      </div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;">
+        ${(r.tags || []).map((t) => `<span class="rec-chip">${escapeHtml(t)}</span>`).join("")}
+        ${s.complete ? `<span class="rec-chip ok">✅ Alles vorhanden</span>` : missingChips + more}
+      </div>
+      <div class="rec-recipe-actions">
+        <button class="btn btn-secondary btn-sm" data-act="view-sugg">Details</button>
+        <button class="btn btn-secondary btn-sm" data-act="shop-sugg" title="Fehlende Zutaten zur Einkaufsliste hinzufügen">${ICONS.cart} Einkaufsliste</button>
+        <button class="btn btn-lime btn-sm" data-act="save-sugg">${ICONS.plus} Speichern</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindSuggestionActions() {
+  document.querySelectorAll("#sugg-section .rec-sugg-card").forEach((card) => {
+    const id = card.dataset.sugg;
+    const findS = () => state.currentSuggestions.find((x) => x.recipe.id === id);
+    card.querySelector('[data-act="view-sugg"]')?.addEventListener("click", () => {
+      const s = findS();
+      if (s) openSuggestionModal(s);
+    });
+    card.querySelector('[data-act="shop-sugg"]')?.addEventListener("click", () => {
+      const s = findS();
+      if (s) addSuggestionToList(s);
+    });
+    card.querySelector('[data-act="save-sugg"]')?.addEventListener("click", async () => {
+      const s = findS();
+      if (s) await saveSuggestion(s);
+    });
+  });
+}
+
+function addSuggestionToList(s) {
+  const items = mergeItems(s.missing.map((m) => ({ ...m, done: false })));
+  currentListItems = mergeItems([...currentListItems, ...items]);
+  persistCurrentList();
+  toast(`${items.length} fehlende Zutaten zur Einkaufsliste hinzugefügt.`, "success");
+  state.tab = "einkauf";
+  renderTabs();
+  renderContent();
+}
+
+async function saveSuggestion(s) {
+  const existing = state.recipes.some((r) => r.title.toLowerCase() === s.recipe.title.toLowerCase());
+  if (existing) {
+    toast("Ein Rezept mit diesem Titel existiert bereits.", "warning");
+    return;
+  }
+  const r = normalizeRecipe({ ...s.recipe, id: uuid(), created_at: new Date().toISOString() });
+  state.recipes.unshift(r);
+  await persistRecipes();
+  renderContent();
+  toast(`Rezept „${r.title}“ gespeichert.`, "success");
+}
+
+function openSuggestionModal(s) {
+  const overlay = document.createElement("div");
+  overlay.className = "rec-overlay";
+  overlay.innerHTML = `
+    <div class="rec-modal rec-modal-lg">
+      <div class="rec-modal-head">
+        <h3 style="font-size: 1rem;">${ICONS.spark} Synaptic-Vorschlag</h3>
+        <button class="rec-icon-btn" data-close>${ICONS.x}</button>
+      </div>
+      <div id="sugg-body"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector("[data-close]").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+
+  const body = overlay.querySelector("#sugg-body");
+  const render = (servings) => {
+    body.innerHTML = renderRecipeDetail(s.recipe, servings) + `
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap;">
+        <button class="btn btn-secondary btn-sm" data-cancel>Schließen</button>
+        <button class="btn btn-secondary btn-sm" data-shop>${ICONS.cart} Einkaufsliste</button>
+        <button class="btn btn-lime btn-sm" data-save>${ICONS.plus} Als Rezept speichern</button>
+      </div>`;
+    body.querySelectorAll("[data-edit], [data-del]").forEach((b) => (b.style.display = "none"));
+    body.querySelector("#svc-minus")?.addEventListener("click", () => { if (servings > 1) render(servings - 1); });
+    body.querySelector("#svc-plus")?.addEventListener("click", () => { if (servings < 20) render(servings + 1); });
+    body.querySelector("[data-cancel]").addEventListener("click", close);
+    body.querySelector("[data-shop]").addEventListener("click", () => addSuggestionToList(s));
+    body.querySelector("[data-save]").addEventListener("click", async () => {
+      await saveSuggestion(s);
+      close();
+    });
+  };
+  render(s.recipe.servings || 2);
+}
+
+// Rezept-Import-Modal: URL oder HTML einfügen
+function openUrlImportModal() {
+  importCandidates = [];
+  importSelectedIdx = -1;
+  const overlay = document.createElement("div");
+  overlay.className = "rec-overlay";
+  overlay.innerHTML = `
+    <div class="rec-modal rec-modal-lg">
+      <div class="rec-modal-head">
+        <h3 style="font-size: 1rem;">${ICONS.link} Rezept von Website importieren</h3>
+        <button class="rec-icon-btn" data-close>${ICONS.x}</button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 14px; line-height: 1.6;">
+        Gib eine Rezept-URL ein oder füge den HTML-Code einer Rezeptseite ein. Die Synaptic-Engine extrahiert Titel, Zutaten und Zubereitung (JSON-LD wird bevorzugt).<br />
+        <span style="font-size: 0.72rem;">Hinweis: Einige Websites blockieren automatische Zugriffe – dann „HTML einfügen“ oder den Text-Import nutzen.</span>
+      </p>
+      <div class="rec-import-tabs">
+        <button class="rec-import-tab active" data-panel="url">URL</button>
+        <button class="rec-import-tab" data-panel="html">HTML einfügen</button>
+      </div>
+      <div id="imp-url">
+        <div style="display: flex; gap: 8px;">
+          <input id="imp-url-input" class="rec-input" placeholder="https://www.chefkoch.de/rezepte/…" style="flex: 1;" />
+          <button class="btn btn-lime btn-sm" id="btn-fetch-url">${ICONS.link} Importieren</button>
+        </div>
+        <p id="imp-url-status" style="color: var(--text-muted); font-size: 0.78rem; margin-top: 8px; min-height: 18px;"></p>
+      </div>
+      <div id="imp-html" style="display: none;">
+        <textarea id="imp-html-input" class="rec-input" rows="6" placeholder="HTML der Rezeptseite hier einfügen (Browser: Rechtsklick → Seitenquelltext anzeigen, Strg+A, Strg+C)…" style="width: 100%; font-family: var(--font-mono); font-size: 0.75rem;"></textarea>
+        <button class="btn btn-secondary btn-sm" id="btn-parse-html" style="margin-top: 8px;">${ICONS.spark} Parsen</button>
+      </div>
+      <div id="imp-results" style="margin-top: 14px;"></div>
+      <div class="rec-modal-foot">
+        <button class="btn btn-secondary btn-sm" data-close2>Schließen</button>
+        <button class="btn btn-lime btn-sm" id="btn-import-selected" disabled>${ICONS.plus} Rezept speichern</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector("[data-close]").addEventListener("click", close);
+  overlay.querySelector("[data-close2]").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+
+  overlay.querySelectorAll(".rec-import-tab").forEach((t) => {
+    t.addEventListener("click", () => {
+      overlay.querySelectorAll(".rec-import-tab").forEach((x) => x.classList.toggle("active", x === t));
+      overlay.querySelector("#imp-url").style.display = t.dataset.panel === "url" ? "block" : "none";
+      overlay.querySelector("#imp-html").style.display = t.dataset.panel === "html" ? "block" : "none";
+    });
+  });
+
+  const status = overlay.querySelector("#imp-url-status");
+  const results = overlay.querySelector("#imp-results");
+  const saveBtn = overlay.querySelector("#btn-import-selected");
+
+  const renderResults = () => {
+    if (!importCandidates.length) {
+      results.innerHTML = "";
+      saveBtn.disabled = true;
+      return;
+    }
+    results.innerHTML = `
+      <div class="rec-group-head" style="margin-bottom: 8px;"><span>Gefunden (${importCandidates.length}) – Rezept wählen</span></div>
+      <div class="rec-rows">${importCandidates.map((c, i) => `
+        <div class="rec-row" data-cand="${i}" style="cursor: pointer; ${i === importSelectedIdx ? "border-color: var(--lime); background: var(--lime-soft);" : ""}">
+          <button class="rec-check ${i === importSelectedIdx ? "on" : ""}" data-cand="${i}">${i === importSelectedIdx ? ICONS.check : ""}</button>
+          <span class="rec-name">
+            <span style="font-weight: 600;">${escapeHtml(c.title)}</span>
+            <span style="display: block; font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">
+              ${c.source === "jsonld" ? "JSON-LD" : "Heuristik"} · ${c.servings} Portionen · ${c.ingredients.length} Zutaten${c.duplicate ? " · <span style='color: var(--amber);'>bereits vorhanden</span>" : ""}
+            </span>
+          </span>
+        </div>`).join("")}
+      </div>`;
+    results.querySelectorAll("[data-cand]").forEach((el) => {
+      el.addEventListener("click", () => {
+        importSelectedIdx = Number(el.dataset.cand);
+        saveBtn.disabled = false;
+        renderResults();
+      });
+    });
+  };
+
+  const showCandidates = (html, url) => {
+    try {
+      importCandidates = extractRecipeFromHtml(html, url);
+    } catch (e) {
+      status.textContent = "Parsing fehlgeschlagen: " + e.message;
+      importCandidates = [];
+    }
+    if (!importCandidates.length) {
+      status.textContent = "Kein Rezept gefunden. Viele Websites verstecken Rezepte hinter dynamischen Scripts – versuche die HTML-Ansicht oder den Text-Import.";
+      results.innerHTML = "";
+      saveBtn.disabled = true;
+      return;
+    }
+    const existing = new Set(state.recipes.map((r) => r.title.toLowerCase()));
+    importCandidates.forEach((c) => { c.duplicate = existing.has(c.title.toLowerCase()); });
+    status.textContent = `${importCandidates.length} Rezept(e) gefunden.`;
+    importSelectedIdx = -1;
+    saveBtn.disabled = true;
+    renderResults();
+  };
+
+  overlay.querySelector("#btn-fetch-url").addEventListener("click", async () => {
+    const raw = overlay.querySelector("#imp-url-input").value.trim();
+    let url;
+    try {
+      url = new URL(raw);
+    } catch {
+      status.textContent = "Bitte eine gültige URL eingeben (https://…).";
+      return;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      status.textContent = "Nur http(s)-URLs werden unterstützt.";
+      return;
+    }
+    status.textContent = "⏳ Seite wird geladen (CORS-Proxy)…";
+    saveBtn.disabled = true;
+    try {
+      const html = await fetchUrlText(url.href);
+      status.textContent = "✅ Seite geladen – extrahiere Rezept…";
+      showCandidates(html, url.href);
+    } catch (e) {
+      status.textContent = "Import fehlgeschlagen: Die Website blockiert automatische Zugriffe oder ist offline. Tipp: Öffne die Seite, kopiere den HTML-Quelltext und nutze „HTML einfügen“.";
+    }
+  });
+
+  overlay.querySelector("#btn-parse-html").addEventListener("click", () => {
+    const html = overlay.querySelector("#imp-html-input").value;
+    if (!html.trim()) {
+      status.textContent = "Bitte HTML einfügen.";
+      return;
+    }
+    status.textContent = "⏳ Parsing…";
+    showCandidates(html, "");
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    const c = importCandidates[importSelectedIdx];
+    if (!c) return;
+    if (c.duplicate && !(await confirmModal(`„${c.title}“ existiert bereits. Trotzdem importieren?`))) return;
+    const r = normalizeRecipe({ ...c, id: uuid(), created_at: new Date().toISOString() });
+    state.recipes.unshift(r);
+    await persistRecipes();
+    close();
+    renderContent();
+    toast(`Rezept „${r.title}“ importiert (${r.ingredients.length} Zutaten).`, "success");
+  });
+}
+
 const TABS = [
   { id: "bestand", label: "Bestand", icon: ICONS.box },
   { id: "rezepte", label: "Rezepte", icon: ICONS.book },
@@ -911,6 +1263,7 @@ function renderRecipes() {
   if (f.sort === "fav") {
     scored.sort((a, b) => (state.favs.has(b.recipe.id) ? 1 : 0) - (state.favs.has(a.recipe.id) ? 1 : 0) || b.score - a.score);
   }
+  state.currentSuggestions = state.inventory.length >= 2 ? generateRecipeSuggestions(state.inventory, { limit: 4 }) : [];
   const recipesTotal = state.recipes.length;
   const machbar = scored.filter((s) => s.complete).length;
 

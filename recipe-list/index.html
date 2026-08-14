@@ -530,6 +530,48 @@
       }
       .shop-done-banner svg { margin: 0 auto 12px; }
 
+      /* ---------- Rezept-Import (URL/HTML) & Synaptic-Vorschläge ---------- */
+      .rec-import-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 14px;
+        padding: 4px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        width: fit-content;
+      }
+      .rec-import-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border-radius: var(--radius);
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all var(--transition);
+      }
+      .rec-import-tab:hover { color: var(--text); }
+      .rec-import-tab.active {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border-strong);
+      }
+      .rec-sugg-badge {
+        color: var(--amber);
+        display: inline-flex;
+        flex-shrink: 0;
+      }
+      .rec-sugg-card {
+        border-color: rgba(251, 191, 36, 0.35);
+        background: linear-gradient(180deg, var(--bg-card), rgba(251, 191, 36, 0.04));
+      }
+      .rec-sugg-card:hover { border-color: rgba(251, 191, 36, 0.6); box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.12); }
+
       /* ---------- Schnellauswahl (Label-Suche) ---------- */
       .rec-suggest {
         display: flex;

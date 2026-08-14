@@ -18,6 +18,7 @@ const SHELL_URLS = [
   "/recipe-list/manifest.webmanifest",
   "/src/recipe-list.js",
   "/src/js/synaptic.js",
+  "/src/js/web-recipes.js",
   "/src/js/ui.js",
   "/src/index.css",
   "/recipe-list-icon.svg",
