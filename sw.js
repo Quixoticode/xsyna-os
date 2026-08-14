@@ -1,4 +1,4 @@
-const CACHE_NAME = "xsyna-v15";
+const CACHE_NAME = "xsyna-v16";
 const OFFLINE_URLS = [
   "/",
   "/index.html",
@@ -16,6 +16,8 @@ const OFFLINE_URLS = [
   "/news/index.html",
   "/recipe-list/",
   "/recipe-list/index.html",
+  "/recipe-list/manifest.webmanifest",
+  "/recipe-list/sw.js",
   "/src/index.css",
   "/src/main.js",
   "/src/docs.js",

@@ -6,11 +6,11 @@
 // STANDALONE: Die App funktioniert komplett ohne Account und
 // offline. Alle Daten liegen lokal (localStorage) und sind jederzeit
 // exportierbar. Wenn ein xSyna-Account angemeldet ist, wird still
-// ein Cloud-Backup geschrieben – ohne dass man sich anmelden muss.
-// Es gibt keine Links zurück zur Website (PWA-Falle).
+// ein Cloud-Backup geschrieben – ohne dass man sich anmelden muss.//   Es gibt keine Links zurück zur Website (PWA-Falle). Die App
+//   registriert ihren eigenen Service Worker (/recipe-list/sw.js),
+//   der jede Navigation innerhalb der Domain wieder zur App
+//   zurückführt – installiert ist man quasi in der App gefangen.
 // ============================================================
-import { supabase } from "./js/supabase.js";
-import "./js/sw-register.js";
 import "./js/api-assets.js";
 import { toast, confirmModal, escapeHtml } from "./js/ui.js";
 import {
@@ -27,6 +27,7 @@ import {
   scaleIngredients,
   modelInfo,
   kbStats,
+  searchLabels,
   CATEGORIES,
 } from "./js/synaptic.js";
 
@@ -75,6 +76,275 @@ const ICONS = {
 };
 
 // ============================================================
+// Supabase ist OPTIONAL (Cloud-Backup). Die App startet und
+// funktioniert komplett ohne Account, ohne Netz und ohne CDN.
+// Das Modul wird erst geladen, wenn es wirklich gebraucht wird.
+// ============================================================
+let _supabase = null;
+let _supabaseFailedAt = 0;
+
+async function getSupabase() {
+  if (_supabase) return _supabase;
+  // Backoff: nach einem Fehlschlag 30 s warten, statt bei jedem
+  // persist() einen Netzwerk-Request zu feuern (wichtig offline).
+  if (Date.now() - _supabaseFailedAt < 30000) return null;
+  try {
+    const mod = await import("./js/supabase.js");
+    _supabase = mod.supabase || null;
+    if (!_supabase) _supabaseFailedAt = Date.now();
+    return _supabase;
+  } catch (e) {
+    _supabaseFailedAt = Date.now();
+    console.warn("[Rezeptliste] Cloud-Backup nicht verfügbar – App läuft lokal weiter.", e);
+    return null;
+  }
+}
+
+// init() referenziert weiterhin `supabase.auth.onAuthStateChange`. Das
+// Supabase-Modul wird aber erst bei Bedarf (Cloud-Backup) geladen – dieser
+// kleine Shim verdrahtet den Auth-Listener lazy, damit die App ohne CDN und
+// ohne Account startet und trotzdem ein Backup bekommt, sobald verfügbar.
+const supabase = {
+  auth: {
+    onAuthStateChange: (cb) => {
+      getSupabase().then((sb) => {
+        if (sb) sb.auth.onAuthStateChange(cb);
+      });
+      return { data: { subscription: null } };
+    },
+  },
+};
+
+// PWA-Bootstrap: eigener App-Service-Worker + Deep-Link-Tab
+// (z. B. /recipe-list/?tab=einkauf aus den Manifest-Shortcuts).
+(function setupAppBootstrap() {
+  const tabParam = new URLSearchParams(window.location.search).get("tab");
+  if (tabParam === "bestand" || tabParam === "rezepte" || tabParam === "einkauf") {
+    state.tab = tabParam;
+  }
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("/recipe-list/sw.js")
+        .then((reg) => console.log("[Rezeptliste SW] registered:", reg.scope))
+        .catch((e) => console.warn("[Rezeptliste SW] registration failed:", e));
+    });
+  }
+})();
+
+// ============================================================
+// Beispielrezepte (Seed-Daten) – Zutaten werden beim Laden
+// durch die Synaptic-Engine normalisiert & kategorisiert.
+// ============================================================
+const SEED_RECIPES = [
+  {
+    title: "Spaghetti Bolognese",
+    servings: 4,
+    ingredients: "400 g Spaghetti\n2 Zwiebeln\n2 Knoblauchzehen\n400 g Rinderhack\n800 ml Passierte Tomaten\n2 EL Tomatenmark\n1 TL Oregano\nSalz\nPfeffer\n1 EL Olivenöl",
+    instructions: "Zwiebeln und Knoblauch fein würfeln und im Öl glasig dünsten. Hackfleisch zugeben und krümelig braten. Tomatenmark einrühren, Passierte Tomaten und Gewürze zugeben und 20 Minuten köcheln lassen. Spaghetti al dente kochen, mit der Sauce servieren.",
+    tags: ["Pasta", "Fleisch", "Italienisch"],
+  },
+  {
+    title: "Pfannkuchen",
+    servings: 2,
+    ingredients: "2 Eier\n250 ml Milch\n125 g Mehl\n1 Prise Salz\n1 EL Zucker\n1 EL Butter",
+    instructions: "Eier, Milch, Mehl, Salz und Zucker zu einem glatten Teig verrühren. Butter in der Pfanne erhitzen, dünne Pfannkuchen nacheinander goldbraun ausbacken.",
+    tags: ["Süß", "Schnell", "Vegetarisch"],
+  },
+  {
+    title: "Gemüsecurry mit Reis",
+    servings: 3,
+    ingredients: "200 g Reis\n1 Zwiebel\n2 Möhren\n1 Paprika\n1 Zucchini\n400 ml Kokosmilch\n2 EL Currypulver\n1 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Gemüse würfeln und im Öl anbraten. Currypulver kurz mitrösten, Kokosmilch angießen und 15 Minuten sanft köcheln. Mit Salz und Pfeffer abschmecken und mit Reis servieren.",
+    tags: ["Vegetarisch", "Curry", "Schnell"],
+  },
+  {
+    title: "Kartoffelsuppe",
+    servings: 4,
+    ingredients: "800 g Kartoffeln\n1 Zwiebel\n2 Möhren\n1 Stange Lauch\n1 l Gemüsebrühe\n200 ml Sahne\n1 EL Butter\nSalz\nPfeffer\nMuskat",
+    instructions: "Kartoffeln, Möhren und Lauch würfeln, Zwiebel andünsten. Gemüse zugeben, Brühe angießen und 25 Minuten weich kochen. Pürieren, Sahne einrühren und mit Muskat abschmecken.",
+    tags: ["Suppe", "Vegetarisch", "Herbst"],
+  },
+  {
+    title: "Hähnchen-Gemüse-Pfanne",
+    servings: 2,
+    ingredients: "400 g Hähnchen\n1 Paprika\n1 Zucchini\n1 Zwiebel\n2 EL Sojasauce\n1 EL Olivenöl\n1 TL Paprikapulver\nPfeffer",
+    instructions: "Hähnchen in Streifen schneiden und im Öl anbraten. Gemüse zugeben, mitbraten. Sojasauce und Gewürze zugeben, 5 Minuten fertig garen.",
+    tags: ["Fleisch", "Schnell", "Wok"],
+  },
+  {
+    title: "Nudelsalat",
+    servings: 4,
+    ingredients: "300 g Nudeln\n2 Tomaten\n1 Gurke\n1 Paprika\n150 g Mais\n3 EL Essig\n4 EL Olivenöl\n1 EL Senf\nSalz\nPfeffer\n1 Bund Petersilie",
+    instructions: "Nudeln kochen und abkühlen lassen. Gemüse klein schneiden und untermischen. Aus Essig, Öl, Senf und Gewürzen ein Dressing rühren, unterheben und mindestens 30 Minuten ziehen lassen.",
+    tags: ["Salat", "Vegetarisch", "Grillen"],
+  },
+  {
+    title: "Chili con Carne",
+    servings: 4,
+    ingredients: "400 g Rinderhack\n1 Zwiebel\n2 Knoblauchzehen\n1 Paprika\n2 Dosen Gehackte Tomaten\n1 Dose Kidneybohnen\n1 Dose Mais\n2 TL Paprikapulver\n1 TL Kreuzkümmel\n1 TL Chilipulver\n1 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Zwiebeln und Knoblauch anbraten, Hackfleisch krümelig braten. Paprika zugeben, Tomaten und Bohnen mit Flüssigkeit angießen. 30 Minuten köcheln, würzen und mit Mais servieren.",
+    tags: ["Eintopf", "Fleisch", "Mexikanisch"],
+  },
+  {
+    title: "Ofengemüse mit Feta",
+    servings: 2,
+    ingredients: "1 Zucchini\n1 Paprika\n2 Möhren\n1 Süßkartoffel\n200 g Feta\n2 EL Olivenöl\n1 TL Paprikapulver\n1 TL Oregano\nSalz\nPfeffer",
+    instructions: "Gemüse in grobe Stücke schneiden, mit Öl und Gewürzen mischen und bei 200 °C 25 Minuten backen. Feta darüberbröseln und weitere 10 Minuten backen.",
+    tags: ["Vegetarisch", "Ofen", "Einfach"],
+  },
+  {
+    title: "Tomatensuppe",
+    servings: 3,
+    ingredients: "800 ml Passierte Tomaten\n1 Zwiebel\n2 Knoblauchzehen\n1 EL Olivenöl\n1 TL Zucker\n200 ml Sahne\nBasilikum\nSalz\nPfeffer",
+    instructions: "Zwiebel und Knoblauch im Öl anschwitzen, Passierte Tomaten und Zucker zugeben, 15 Minuten köcheln. Sahne einrühren, mit Salz, Pfeffer und Basilikum abschmecken.",
+    tags: ["Suppe", "Vegetarisch", "Schnell"],
+  },
+  {
+    title: "Rührei mit Toast",
+    servings: 1,
+    ingredients: "3 Eier\n2 Scheiben Brot\n1 EL Butter\nSalz\nPfeffer\n1 EL Schnittlauch",
+    instructions: "Eier verquirlen und würzen. Butter in der Pfanne zerlassen, Eier stockend rühren. Toast rösten, mit Rührei und Schnittlauch servieren.",
+    tags: ["Frühstück", "Schnell", "Vegetarisch"],
+  },
+];
+
+// ============================================================
+// Einkaufsmodus – große Touch-Flächen zum Abhaken im Laden
+// ============================================================
+function openShoppingMode() {
+  const overlay = document.createElement("div");
+  overlay.className = "shop-overlay";
+  overlay.innerHTML = `
+    <div class="shop-head">
+      <div>
+        <div style="font-weight:700;">Einkaufsmodus</div>
+        <div style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-muted);" id="shop-pct"></div>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="shop-exit">Beenden</button>
+    </div>
+    <div class="shop-progress"><div style="width:0%"></div></div>
+    <div class="shop-scroll"></div>
+    <div class="shop-footer">
+      <button class="btn btn-secondary btn-sm" id="shop-all">Alle abhaken</button>
+      <button class="btn btn-secondary btn-sm" id="shop-unall">Zurücksetzen</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const render = () => {
+    const total = currentListItems.length;
+    const done = currentListItems.filter((i) => i.done).length;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const scroll = overlay.querySelector(".shop-scroll");
+    const pctEl = overlay.querySelector("#shop-pct");
+    const bar = overlay.querySelector(".shop-progress > div");
+    if (pctEl) pctEl.textContent = `${done}/${total} · ${pct}%`;
+    if (bar) bar.style.width = pct + "%";
+
+    if (pct === 100) {
+      scroll.innerHTML = `
+        <div class="shop-done-banner">
+          ${ICONS.check}
+          <h2 style="font-size:1.4rem; margin-bottom:8px;">Alles erledigt!</h2>
+          <p style="color:var(--text-secondary); max-width:420px; margin:0 auto;">${total} Positionen abgehakt. Du kannst die gekauften Artikel jetzt in deinen Bestand übernehmen.</p>
+          <div style="display:flex; gap:10px; justify-content:center; margin-top:20px; flex-wrap:wrap;">
+            <button class="btn btn-lime" id="shop-consume">${ICONS.box} In Bestand übernehmen</button>
+            <button class="btn btn-secondary" id="shop-close">Fertig</button>
+          </div>
+        </div>`;
+      scroll.querySelector("#shop-consume")?.addEventListener("click", () => { overlay.remove(); consumeDoneItems(); });
+      scroll.querySelector("#shop-close")?.addEventListener("click", () => { overlay.remove(); renderContent(); });
+      return;
+    }
+
+    const groups = groupByCategory(currentListItems);
+    scroll.innerHTML = groups.map(([cat, items]) => `
+      <div class="rec-group">
+        <div class="shop-cat"><span>${escapeHtml(cat)}</span><span class="rec-group-count">${items.filter((i) => i.done).length}/${items.length}</span></div>
+        ${items.map((i) => `
+          <div class="shop-item ${i.done ? "done" : ""}" data-name="${escapeHtml(i.name)}">
+            <span class="shop-check ${i.done ? "on" : ""}">${i.done ? ICONS.check : ""}</span>
+            <span class="shop-name">${escapeHtml(i.name)}</span>
+            <span class="shop-amount">${formatAmount(i)}</span>
+          </div>`).join("")}
+      </div>`).join("");
+
+    scroll.querySelectorAll(".shop-item").forEach((row) => {
+      row.addEventListener("click", () => {
+        const item = currentListItems.find((i) => i.name === row.dataset.name);
+        if (item) item.done = !item.done;
+        persistCurrentList();
+        render();
+      });
+    });
+  };
+
+  overlay.querySelector("#shop-exit").addEventListener("click", () => { overlay.remove(); renderContent(); });
+  overlay.querySelector("#shop-all").addEventListener("click", () => { currentListItems.forEach((i) => (i.done = true)); persistCurrentList(); render(); });
+  overlay.querySelector("#shop-unall").addEventListener("click", () => { currentListItems.forEach((i) => (i.done = false)); persistCurrentList(); render(); });
+  render();
+}
+
+// ============================================================
+// Gekaufte Artikel → Bestand übernehmen
+// ============================================================
+async function consumeDoneItems() {
+  const done = currentListItems.filter((i) => i.done);
+  if (!done.length) { toast("Erst Artikel abhaken.", "warning"); return; }
+  for (const d of done) {
+    const existing = state.inventory.find((i) => i.name === d.name && (i.unit || "") === (d.unit || ""));
+    if (existing && d.amount != null && existing.amount != null) {
+      existing.amount = Math.round((existing.amount + d.amount) * 100) / 100;
+    } else if (existing && existing.amount == null && d.amount != null) {
+      existing.amount = d.amount;
+    } else {
+      state.inventory.unshift({
+        id: uuid(),
+        name: d.name,
+        amount: d.amount,
+        unit: d.unit || "",
+        category: d.category || "Sonstiges",
+        source: "shopping",
+        created_at: new Date().toISOString(),
+      });
+    }
+  }
+  currentListItems = currentListItems.filter((i) => !i.done);
+  persistCurrentList();
+  await persistInventory();
+  renderContent();
+  toast(`${done.length} Artikel in den Bestand übernommen.`, "success");
+}
+
+// ============================================================
+// Beispielrezepte (Seed-Daten) laden
+// ============================================================
+async function seedRecipes() {
+  if (state.recipes.length) return;
+  const added = [];
+  for (const seed of SEED_RECIPES) {
+    const ingredients = mergeItems(parseText(seed.ingredients)).map((i) => ({
+      name: i.name, amount: i.amount, unit: i.unit, category: i.category,
+    }));
+    state.recipes.push({
+      id: uuid(),
+      title: seed.title,
+      servings: seed.servings || 2,
+      ingredients,
+      instructions: seed.instructions || "",
+      tags: seed.tags || [],
+      is_public: false,
+      created_at: new Date().toISOString(),
+    });
+    added.push(seed.title);
+  }
+  await persistRecipes();
+  renderContent();
+  toast(`${added.length} Beispielrezepte geladen: ${added.slice(0, 3).join(", ")}${added.length > 3 ? " …" : ""}`, "success");
+}
+
+// ============================================================
 // Store — lokal first, optionales Cloud-Backup
 // ============================================================
 function uuid() {
@@ -113,16 +383,31 @@ function mapRecipe(r) {
   };
 }
 
+// Normalisiert ein Rezept aus Import/Altbestand auf das aktuelle Schema.
+function normalizeRecipe(r) {
+  return {
+    id: r.id || uuid(),
+    title: r.title || "Unbenanntes Rezept",
+    servings: Number(r.servings) || 2,
+    ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
+    instructions: r.instructions || "",
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    is_public: !!r.is_public,
+    created_at: r.created_at || new Date().toISOString(),
+  };
+}
+
 function mapList(l) {
   return { id: l.id, title: l.title, items: l.items || [], created_at: l.created_at };
 }
 
 async function cloudBackup(table, rows) {
-  if (!state.user) return;
+  const sb = await getSupabase();
+  if (!sb || !state.user) return;
   try {
-    await supabase.from(table).delete().eq("user_id", state.user.id);
+    await sb.from(table).delete().eq("user_id", state.user.id);
     if (rows.length) {
-      const { error } = await supabase.from(table).insert(rows.map((r) => ({ user_id: state.user.id, ...r })));
+      const { error } = await sb.from(table).insert(rows.map((r) => ({ user_id: state.user.id, ...r })));
       if (error) throw error;
     }
     state.cloudOk = true;
@@ -168,14 +453,16 @@ async function loadAll() {
 
   state.user = null;
   state.cloudOk = false;
+  const sb = await getSupabase();
+  if (!sb) return;
   try {
-    const { data } = await supabase.auth.getSession();
+    const { data } = await sb.auth.getSession();
     if (data?.session?.user) {
       state.user = data.session.user;
       const [{ data: inv }, { data: rec }, { data: lists }] = await Promise.all([
-        supabase.from("recipe_inventory").select("*"),
-        supabase.from("recipes").select("*"),
-        supabase.from("shopping_lists").select("*"),
+        sb.from("recipe_inventory").select("*"),
+        sb.from("recipes").select("*"),
+        sb.from("shopping_lists").select("*"),
       ]);
       if (inv?.length && !state.inventory.length) state.inventory = inv.map(mapRow);
       if (rec?.length && !state.recipes.length) state.recipes = rec.map(mapRecipe);
@@ -225,7 +512,8 @@ function renderStatus() {
 function exportData() {
   const data = {
     app: "xsyna-rezeptliste",
-    version: 2,
+    version: 3,
+    schema: "xsynarec-v3",
     exportedAt: new Date().toISOString(),
     inventory: state.inventory,
     recipes: state.recipes,
@@ -258,9 +546,24 @@ function importData() {
         return;
       }
       if (!(await confirmModal("Der Import ersetzt ALLE lokalen Daten (Bestand, Rezepte, Listen). Fortfahren?"))) return;
-      state.inventory = data.inventory || [];
-      state.recipes = data.recipes || [];
-      state.lists = data.lists || [];
+      // Migration: alte Backups (v1/v2) werden auf das aktuelle
+      // Schema normalisiert – fehlende IDs/Datumsangaben ergänzt.
+      state.inventory = (data.inventory || []).map((i) => ({
+        id: i.id || uuid(),
+        name: i.name,
+        amount: i.amount != null ? Number(i.amount) : null,
+        unit: i.unit || "",
+        category: i.category || "Sonstiges",
+        source: i.source || "manual",
+        created_at: i.created_at || new Date().toISOString(),
+      }));
+      state.recipes = (data.recipes || []).map(normalizeRecipe);
+      state.lists = (data.lists || []).map((l) => ({
+        id: l.id || uuid(),
+        title: l.title || "Einkaufsliste",
+        items: l.items || [],
+        created_at: l.created_at || new Date().toISOString(),
+      }));
       currentListItems = data.current || [];
       currentListTitle = data.currentTitle || "Einkaufsliste";
       await persistInventory();
@@ -417,6 +720,7 @@ function renderRecipes() {
           <option value="az" ${f.sort === "az" ? "selected" : ""}>A–Z</option>
         </select>
       </div>
+      ${!state.recipes.length ? `<button class="btn btn-secondary btn-sm" id="btn-seed">${ICONS.spark} Beispielrezepte laden</button>` : ""}
       <button class="btn btn-lime btn-sm" id="btn-new-recipe">${ICONS.plus} Neues Rezept</button>
     </div>
 
@@ -435,7 +739,10 @@ function renderEmptyRecipes() {
       ${ICONS.book}
       <h3>Keine Rezepte gefunden</h3>
       <p style="color: var(--text-secondary); max-width: 440px; margin: 0 auto 24px;">Lege deine ersten Rezepte an – die Synaptic-Engine parst die Zutatenliste automatisch und gleicht sie mit deinem Bestand ab.</p>
-      <button class="btn btn-lime" id="btn-new-recipe">${ICONS.plus} Rezept anlegen</button>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn btn-lime" id="btn-new-recipe">${ICONS.plus} Rezept anlegen</button>
+        <button class="btn btn-secondary" id="btn-seed">${ICONS.spark} Beispielrezepte laden</button>
+      </div>
     </div>
   `;
 }
@@ -489,6 +796,7 @@ function renderShopping() {
         <span class="rec-kpi">${total} Positionen · ${done} erledigt</span>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-lime btn-sm" id="btn-shop-mode" ${total ? "" : "disabled"} title="Große Touch-Buttons zum Abhaken im Laden">${ICONS.cart} Einkaufsmodus</button>
         <button class="btn btn-lime btn-sm" id="btn-recalc">${ICONS.spark} Smart neu berechnen</button>
         <button class="btn btn-secondary btn-sm" id="btn-add-manual">${ICONS.plus} Manuell</button>
         <button class="btn btn-secondary btn-sm" id="btn-print">${ICONS.print} Drucken</button>
@@ -504,6 +812,7 @@ function renderShopping() {
         </div>
         <div class="rec-progress"><div style="width: ${pct}%"></div></div>
         ${pct === 100 ? `<p style="margin-top: 10px; color: var(--lime); font-size: 0.85rem; font-weight: 500;">🎉 Alles erledigt – nichts mehr einzupacken!</p>` : ""}
+        ${done > 0 ? `<div style="display:flex; gap:8px; margin-top: 12px; flex-wrap: wrap;"><button class="btn btn-secondary btn-sm" id="btn-consume">${ICONS.box} ${done} gekauft → Bestand übernehmen</button></div>` : ""}
       </div>` : ""}
 
     ${selected.length ? `
@@ -610,6 +919,7 @@ function bindInvRows() {
 
 function bindRecipes() {
   $("btn-new-recipe")?.addEventListener("click", () => openRecipeModal());
+  $("btn-seed")?.addEventListener("click", seedRecipes);
   const f = state.recipeFilter;
   const q = $("rec-search");
   if (q) q.addEventListener("input", () => { f.query = q.value; rerenderRecipes(); });
@@ -641,6 +951,9 @@ function rerenderRecipes() {
 }
 
 function bindShopping() {
+  $("btn-shop-mode")?.addEventListener("click", () => { if (currentListItems.length) openShoppingMode(); });
+  $("btn-consume")?.addEventListener("click", consumeDoneItems);
+
   $("btn-recalc")?.addEventListener("click", () => {
     const selected = selectedRecipeObjects();
     if (!selected.length) { toast("Erst Rezepte auswählen (Tab „Rezepte“).", "warning"); return; }
@@ -823,10 +1136,28 @@ function activateAddMode(mode, overlay) {
   if (mode === "manual") {
     body.innerHTML = `
       <textarea id="manual-text" class="rec-input" rows="5" placeholder="z. B.&#10;2 Tomaten&#10;1 Zwiebel&#10;500 g Mehl&#10;Milch"></textarea>
+      <div id="manual-suggest" class="rec-suggest" style="display:none;"></div>
       <button class="btn btn-secondary btn-sm" id="btn-parse" style="margin-top: 10px;">${ICONS.spark} Erkennen</button>
     `;
+    const ta = body.querySelector("#manual-text");
+    const suggest = body.querySelector("#manual-suggest");
+    ta.addEventListener("input", () => {
+      const last = ta.value.split(/[\n,;]/).pop().trim();
+      const hits = last.length >= 2 ? searchLabels(last, 8) : [];
+      if (!hits.length) { suggest.style.display = "none"; suggest.innerHTML = ""; return; }
+      suggest.style.display = "flex";
+      suggest.innerHTML = hits.map((h) => `<button type="button" class="rec-suggest-chip" data-label="${escapeHtml(h.name)}">${escapeHtml(h.name)}</button>`).join("");
+      suggest.querySelectorAll("[data-label]").forEach((b) => b.addEventListener("click", () => {
+        const parts = ta.value.split(/[\n,;]/);
+        parts[parts.length - 1] = b.dataset.label;
+        ta.value = parts.join("\n");
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+        suggest.style.display = "none";
+      }));
+    });
     body.querySelector("#btn-parse").addEventListener("click", () => {
-      addModalCandidates = parseText(body.querySelector("#manual-text").value).map((i) => ({ ...i, source: "manual", selected: true }));
+      addModalCandidates = parseText(ta.value).map((i) => ({ ...i, source: "manual", selected: true }));
       renderCandidates(overlay, foot);
     });
   } else if (mode === "camera") {
@@ -965,7 +1296,7 @@ function cleanupStream() {
   }
 }
 
-function renderCandidates(overlay, foot) {
+function renderCandidates(overlay, foot) { /* TOOLCHECK */
   const wrap = overlay.querySelector("#add-candidates");
   const confirmBtn = overlay.querySelector("#btn-confirm-add");
   if (!addModalCandidates.length) {

@@ -540,6 +540,43 @@ const KNOWLEDGE = [
   // ----- Sonstiges (erweitert) -----
   K("Hefeflocken", "Sonstiges", "g", []),
   K("Proteinpulver", "Sonstiges", "Packung", []),
+
+  // ----- Erweiterung: Alltagsartikel (Batch 2) -----
+  K("Schnitzel", "Fleisch & Fisch", "g", ["wiener schnitzel", "schnitzel"]),
+  K("Steak", "Fleisch & Fisch", "g", ["rindersteak", "steaks"]),
+  K("Chicken Wings", "Fleisch & Fisch", "g", ["wings", "chicken wings"]),
+  K("Frikadellen", "Fleisch & Fisch", "g", ["hackbällchen", "fleischbällchen", "frikadelle", "buletten"]),
+  K("Falafel", "Fleisch & Fisch", "g", []),
+  K("Hähnchenflügel", "Fleisch & Fisch", "g", ["hähnchenflügel"]),
+  K("Maultaschen", "Nudeln & Getreide", "g", []),
+  K("Schupfnudeln", "Nudeln & Getreide", "g", []),
+  K("Spätzle", "Nudeln & Getreide", "g", ["schwäbische spätzle", "spaetzle"]),
+  K("Kartoffelbrei", "Sonstiges", "g", ["kartoffelpüree", "püree", "puree", "kartoffelbrei instant"]),
+  K("Kaffeesahne", "Milchprodukte", "ml", ["kaffeeweißer", "kaffeeweisser", "sahne für kaffee"]),
+  K("Süßstoff", "Sonstiges", "Packung", ["sussstoff", "süßungsmittel", "flussiger süßstoff"]),
+  K("Apfelmus", "Konserven & Saucen", "Glas", ["apfelmus"]),
+  K("Kombucha", "Getränke", "l", []),
+  K("Eiscreme", "Süßes & Snacks", "g", ["eiscreme"]),
+  K("Salzstangen", "Süßes & Snacks", "g", ["salzstangen"]),
+  K("Erdnüsse", "Süßes & Snacks", "g", ["erdnüsse", "peanuts", "pistazien"]),
+  K("Dattelpaste", "Süßes & Snacks", "g", []),
+  K("Knabberzeug", "Süßes & Snacks", "Packung", ["snacks", "chips mix"]),
+  K("Kokosmilchpulver", "Sonstiges", "Packung", []),
+  K("TK-Erbsen", "Tiefkühl", "g", ["tiefkühlerbsen", "tk erbsen"]),
+  K("TK-Spinat", "Tiefkühl", "g", ["tiefkühlspinat", "tk spinat", "rahmtspinat"]),
+  K("Fischstäbchen", "Tiefkühl", "g", ["fischstaebchen"]),
+  K("Kroketten", "Tiefkühl", "g", []),
+  K("Geschirrspültabs", "Haushalt", "Packung", ["spültabs", "spülmaschinentabs", "maschinentabs"]),
+  K("Küchenrollenhalter", "Haushalt", "Stück", []),
+  K("Müllbeutel", "Haushalt", "Packung", ["müllsäcke", "mullsack", "mullbeutel"]),
+  K("Kerzen", "Haushalt", "Stück", []),
+  K("Gießkanne", "Haushalt", "Stück", []),
+  K("Duschgel", "Pflege & Körper", "Flasche", []),
+  K("Gesichtsmaske", "Pflege & Körper", "Stück", []),
+  K("Nagellackentferner", "Pflege & Körper", "Flasche", []),
+  K("Katzenfutter", "Tierbedarf", "Packung", ["katzenfutter dose", "katzenfutter nass"]),
+  K("Hundefutter", "Tierbedarf", "Packung", []),
+  K("Vogelstreu", "Tierbedarf", "Packung", []),
 ];
 
 // Lookup-Tabellen (nur einmal aufbauen)
@@ -901,6 +938,34 @@ export function scaleIngredients(ingredients, factor) {
 
 export function kbStats() {
   return { labels: KNOWLEDGE.length, categories: CATEGORIES.length, aliases: KB_ALIAS.size };
+}
+
+// ------------------------------------------------------------
+// Label-Suche für Schnellauswahl (Type-Ahead in der Eingabe)
+// ------------------------------------------------------------
+export function searchLabels(query, limit = 8) {
+  const q = normalize(query);
+  if (!q || q.length < 2) return [];
+  const scored = [];
+  for (const entry of KNOWLEDGE) {
+    const norm = normalize(entry.name);
+    let score = 0;
+    if (norm === q) score = 2;
+    else if (norm.startsWith(q)) score = 1.2 - Math.min(0.6, norm.length * 0.01);
+    else if (norm.includes(q)) score = 0.8 - Math.min(0.5, norm.length * 0.008);
+    else {
+      for (const alias of entry.aliases) {
+        const a = normalize(alias);
+        if (a === q) { score = Math.max(score, 1.9); break; }
+        if (a.startsWith(q)) { score = Math.max(score, 1.1); break; }
+        if (a.includes(q)) { score = Math.max(score, 0.7); }
+      }
+      if (score === 0) continue;
+    }
+    scored.push({ entry, score });
+  }
+  scored.sort((a, b) => b.score - a.score || normalize(a.entry.name).localeCompare(normalize(b.entry.name), "de"));
+  return scored.slice(0, limit).map((s) => s.entry);
 }
 
 export function modelInfo() {

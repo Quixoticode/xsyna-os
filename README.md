@@ -21,6 +21,8 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
 ├── internal-services/index.html # Dashboard / admin panel
 ├── track/index.html           # Public order/commission tracking
 ├── recipe-list/index.html     # Rezeptliste web app (Bestand/Rezepte/Einkauf)
+├── recipe-list/manifest.webmanifest # Eigenes PWA-Manifest (Scope /recipe-list/)
+├── recipe-list/sw.js          # App-Service-Worker: Offline-Cache + PWA-Falle
 ├── recipe-list-icon.svg       # Rezeptliste app icon
 ├── src/
 │   ├── index.css              # Global design system
@@ -41,6 +43,19 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
 ├── scripts/setup-admin.mjs    # Promote a user to admin
 └── package.json               # Minimal static-server scripts
 ```
+
+## Rezeptliste (Standalone-PWA)
+
+- Funktioniert **komplett ohne Account** – alle Daten liegen lokal (localStorage).
+  Supabase wird nur als optionales Cloud-Backup geladen, wenn bereits eine
+  Session existiert (lazy, mit Backoff – die App startet auch offline/CDN-los).
+- **PWA-Falle**: Die App hat keine Links zur Website. Ihr eigener Service
+  Worker (`/recipe-list/sw.js`, Scope `/recipe-list/`) leitet jede Navigation
+  innerhalb der Domain zurück zur App – installiert ist man in der App gefangen.
+- Installierbar als eigenständige App (eigenes Manifest, `display: standalone`).
+- Einkaufsmodus mit großen Touch-Flächen zum Abhaken + „Gekauft → Bestand“.
+- Beispielrezepte per Klick ladbar (Seed-Daten, werden durch die Synaptic-
+  Engine normalisiert). Export/Import inkl. Migration alter Backup-Formate.
 
 ## Development
 

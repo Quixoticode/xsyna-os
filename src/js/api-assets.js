@@ -90,6 +90,9 @@ async function fetchIndex() {
 
 /** Show a fixed, dismissible banner at the top of the page. */
 function showBanner(code, message, tone) {
+  // Standalone-Apps (z. B. Rezeptliste) zeigen keine API-Banner – (edit-check)
+  // Branding wird still angewendet, Fehler bleiben unsichtbar.
+  if (document.documentElement.dataset.app === "standalone") return;
   if (document.getElementById("xs-api-banner")) return;
   const el = document.createElement("div");
   el.id = "xs-api-banner";
