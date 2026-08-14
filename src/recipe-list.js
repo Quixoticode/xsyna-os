@@ -70,6 +70,7 @@ const ICONS = {
   book: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
   cart: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>',
   camera: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  barcode: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M7 5v14"/><path d="M11 5v14"/><path d="M15 5v14"/><path d="M19 5v14"/><path d="M21 5v14"/></svg>',
   mic: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>',
   type: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>',
   plus: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
@@ -1240,8 +1241,8 @@ function renderInvGroup(cat, items) {
 }
 
 function renderInvRow(item) {
-  const srcIcon = item.source === "camera" ? ICONS.camera : item.source === "mic" ? ICONS.mic : ICONS.type;
-  const srcTitle = item.source === "camera" ? "per Kamera erfasst" : item.source === "mic" ? "per Sprache erfasst" : "manuell erfasst";
+  const srcIcon = item.source === "camera" ? ICONS.camera : item.source === "mic" ? ICONS.mic : item.source === "barcode" ? ICONS.barcode : ICONS.type;
+  const srcTitle = item.source === "camera" ? "per Kamera erfasst" : item.source === "mic" ? "per Sprache erfasst" : item.source === "barcode" ? "per Barcode erfasst" : "manuell erfasst";
   return `
     <div class="rec-row" data-id="${item.id}">
       <span class="rec-src" title="${srcTitle}">${srcIcon}</span>
@@ -1751,7 +1752,9 @@ function activateAddMode(mode, overlay) {
         <video id="cam-video" autoplay playsinline muted style="width: 100%; border-radius: 8px; background: #000; max-height: 300px;"></video>
         <div class="rec-cam-actions">
           <button class="btn btn-lime btn-sm" id="btn-capture">${ICONS.camera} Foto aufnehmen</button>
+          <button class="btn btn-secondary btn-sm" id="btn-barcode" style="display: none;">${ICONS.barcode} Barcode</button>
         </div>
+        <p id="barcode-status" style="color: var(--lime); font-size: 0.78rem; margin-top: 8px; min-height: 18px;"></p>
         <div id="ocr-progress" style="display: none; margin-top: 10px;">
           <div class="rec-progress"><div id="ocr-bar" style="width: 0%"></div></div>
           <p id="ocr-status" style="color: var(--text-muted); font-size: 0.75rem; margin-top: 6px;">OCR läuft…</p>
@@ -1759,6 +1762,16 @@ function activateAddMode(mode, overlay) {
       </div>
     `;
     const video = body.querySelector("#cam-video");
+    let bcBtn = null;
+    let bcStatus = null;
+    let detecting = false;
+    let detTimer = null;
+    const stopDetecting = () => {
+      detecting = false;
+      if (detTimer) { clearInterval(detTimer); detTimer = null; }
+      if (bcBtn) bcBtn.innerHTML = `${ICONS.barcode} Barcode`;
+      if (bcStatus) bcStatus.textContent = "";
+    };
     navigator.mediaDevices
       .getUserMedia({ video: { facingMode: "environment" } })
       .then((stream) => {
@@ -1775,6 +1788,7 @@ function activateAddMode(mode, overlay) {
       canvas.height = video.videoHeight || 720;
       canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+      stopDetecting();
       cleanupStream();
       body.querySelector("#ocr-progress").style.display = "block";
       try {
@@ -1787,6 +1801,50 @@ function activateAddMode(mode, overlay) {
         body.innerHTML = `<p style="color: var(--error); font-size: 0.85rem;">OCR fehlgeschlagen: ${escapeHtml(e.message)}<br><span style="color: var(--text-muted);">Offline? Das OCR-Modell wird beim ersten Scan aus dem CDN geladen.</span></p>`;
       }
     });
+    bcBtn = body.querySelector("#btn-barcode");
+    bcStatus = body.querySelector("#barcode-status");
+    if (bcBtn && "BarcodeDetector" in window) {
+      bcBtn.style.display = "inline-flex";
+      bcBtn.addEventListener("click", async () => {
+        if (detecting) { stopDetecting(); return; }
+        detecting = true;
+        bcBtn.innerHTML = `${ICONS.barcode} Suche läuft… (Stopp)`;
+        if (bcStatus) bcStatus.textContent = "Halte den Barcode ins Bild – wird automatisch erkannt.";
+        try {
+          const detector = new window.BarcodeDetector({
+            formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "code_93", "itf", "qr_code", "data_matrix"],
+          });
+          detTimer = setInterval(async () => {
+            try {
+              const codes = await detector.detect(video);
+              if (!codes || !codes.length) return;
+              const raw = codes[0].rawValue;
+              stopDetecting();
+              cleanupStream();
+              const known = state.inventory.find((i) => i.barcodes && i.barcodes.includes(raw));
+              addModalCandidates = [{
+                name: known ? known.name : "Artikel",
+                amount: known ? known.amount : null,
+                unit: known ? known.unit : "",
+                category: known ? known.category : "Sonstiges",
+                confidence: known ? 1 : 0.5,
+                source: "barcode",
+                raw,
+                selected: true,
+              }];
+              if (bcStatus) bcStatus.textContent = `Barcode erkannt: ${raw}${known ? ` → ${known.name}` : " – Name bearbeiten & bestätigen"}`;
+              renderCandidates(overlay, foot);
+            } catch { /* einzelner Frame fehlgeschlagen – weiter scannen */ }
+          }, 250);
+        } catch (e) {
+          detecting = false;
+          bcBtn.innerHTML = `${ICONS.barcode} Barcode`;
+          if (bcStatus) bcStatus.textContent = "Barcode-Erkennung nicht verfügbar: " + e.message;
+        }
+      });
+    } else if (bcStatus) {
+      bcStatus.textContent = "Barcode-Erkennung wird von diesem Browser nicht unterstützt (Chrome/Edge empfohlen).";
+    }
   } else {
     body.innerHTML = `
       <div style="text-align: center; padding: 12px 0;">
@@ -2014,6 +2072,8 @@ function openRecipeModal(id) {
         renderContent();
         toast("Rezept gelöscht.", "success");
       }));
+      body.querySelector("[data-copy]")?.addEventListener("click", () => copyRecipeText(existing, servings));
+      body.querySelector("[data-print]")?.addEventListener("click", () => printRecipe(existing, servings));
     };
     renderDetail(existing.servings || 2);
   } else {
@@ -2054,11 +2114,53 @@ function renderRecipeDetail(r, servings) {
       </div>
     </div>
     ${r.instructions ? `<div style="margin-bottom: 16px;"><div class="rec-group-head" style="margin-bottom: 8px;"><span>Zubereitung</span></div><p style="color: var(--text-secondary); font-size: 0.88rem; white-space: pre-wrap; line-height: 1.7;">${escapeHtml(r.instructions)}</p></div>` : ""}
-    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px;">
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap;">
       <button class="btn btn-secondary btn-sm" data-del>${ICONS.trash} Löschen</button>
+      <button class="btn btn-secondary btn-sm" data-copy>${ICONS.copy} Kopieren</button>
+      <button class="btn btn-secondary btn-sm" data-print>${ICONS.print} Drucken</button>
       <button class="btn btn-lime btn-sm" data-edit>${ICONS.edit} Bearbeiten</button>
     </div>
   `;
+}
+
+function copyRecipeText(r, servings) {
+  const factor = servings / (r.servings || 2);
+  const scaled = scaleIngredients(r.ingredients || [], factor);
+  const text = [
+    `🍳 ${r.title} (${servings} Portionen)`,
+    "",
+    "Zutaten:",
+    ...scaled.map((i) => `- ${formatAmount(i)} ${i.name}`.trim()),
+    "",
+    r.instructions ? `Zubereitung:\n${r.instructions}` : "",
+    "",
+    "Erstellt mit der xSyna Rezeptliste (lokal & offline)",
+  ].filter((l) => l !== "").join("\n");
+  const done = () => toast("Rezept in die Zwischenablage kopiert.", "success");
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => { if (fallbackCopy(text)) done(); });
+  } else {
+    fallbackCopy(text);
+    done();
+  }
+}
+
+function printRecipe(r, servings) {
+  const factor = servings / (r.servings || 2);
+  const scaled = scaleIngredients(r.ingredients || [], factor);
+  const win = window.open("", "_blank", "width=720,height=900");
+  if (!win) { toast("Popup wurde blockiert – bitte erlauben und erneut versuchen.", "warning"); return; }
+  const content = [
+    `<h1>${escapeHtml(r.title)}</h1>`,
+    `<p class="meta">${servings} Portionen</p>`,
+    `<h2>Zutaten</h2>`,
+    `<ul>${scaled.map((i) => `<li>${escapeHtml(formatAmount(i))} ${escapeHtml(i.name)}</li>`).join("")}</ul>`,
+    r.instructions ? `<h2>Zubereitung</h2><p class="steps">${escapeHtml(r.instructions)}</p>` : "",
+  ].join("");
+  win.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${escapeHtml(r.title)}</title><style>body{font-family:system-ui,-apple-system,sans-serif;max-width:640px;margin:40px auto;padding:0 20px;color:#111}h1{font-size:26px;margin-bottom:4px}.meta{color:#666;margin-top:0}h2{margin-top:28px;font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:#333}ul{padding-left:20px;line-height:1.7}li{margin-bottom:2px}.steps{line-height:1.8;white-space:pre-wrap}</style></head><body>${content}</body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
 }
 
 function renderRecipeForm(r) {
