@@ -289,6 +289,40 @@
       .rec-empty svg { margin: 0 auto 16px; color: var(--lime); opacity: 0.7; }
       .rec-empty h3 { margin-bottom: 8px; font-size: 1.15rem; }
 
+      /* MHD / Filter-Chips */
+      .rec-filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+      .rec-filter {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 5px 12px;
+        cursor: pointer;
+        transition: all var(--transition);
+      }
+      .rec-filter:hover { color: var(--text); border-color: var(--border-strong); }
+      .rec-filter.active { color: #000; background: var(--lime); border-color: var(--lime); font-weight: 600; }
+      .rec-filter.active .rec-filter-count { color: #000; opacity: 0.7; }
+      .rec-filter-count { opacity: 0.6; font-size: 0.65rem; }
+      .rec-expiry {
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        border-radius: 999px;
+        padding: 3px 9px;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+      }
+      .rec-expiry.ok { color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); }
+      .rec-expiry.soon { color: #000; background: var(--warning); border: 1px solid var(--warning); font-weight: 600; }
+      .rec-expiry.expired { color: #fff; background: var(--error); border: 1px solid var(--error); font-weight: 600; }
+      .rec-chip-sub { opacity: 0.65; font-size: 0.66rem; font-weight: 400; }
+      .rec-warning-strip { border-color: rgba(239, 68, 68, 0.35); }
+      .rec-warning-strip:hover { border-color: rgba(239, 68, 68, 0.55); }
+
       /* Overlay / Modals */
       .rec-overlay {
         position: fixed;
@@ -518,10 +552,18 @@
         backdrop-filter: blur(12px);
         border-top: 1px solid var(--border);
         display: flex;
+        flex-wrap: wrap;
         gap: 10px;
         justify-content: center;
         max-width: 720px;
         margin: 0 auto;
+      }
+      .shop-hint {
+        flex-basis: 100%;
+        text-align: center;
+        font-size: 0.66rem;
+        color: var(--text-muted);
+        padding: 8px 0 2px;
       }
       .shop-done-banner {
         text-align: center;
@@ -681,6 +723,6 @@
       </div>
     </footer>
 
-    <script type="module" src="/src/recipe-list.js?v=3"></script>
+    <script type="module" src="/src/recipe-list.js?v=4"></script>
   </body>
 </html>

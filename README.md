@@ -57,15 +57,25 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
   inkl. „Installieren“-Button (beforeinstallprompt) und Einmal-Willkommens-Info.
 - **Bestand**: manuell, per Kamera (OCR) oder Sprache erfassen; Mengen/Labels
   werden von der Synaptic-Engine normalisiert; Suche & Kategorie-Gruppierung.
+- **Mindesthaltbarkeit (MHD)**: optionales Ablaufdatum pro Artikel (im
+  Mengen-Editor setzbar), MHD-Badges in der Liste (✓ grün / ⚠ läuft in ≤5
+  Tagen ab / ✕ abgelaufen) und Filter-Chips „Alle / Abgelaufen / Läuft bald
+  ab / Ohne MHD“ inkl. Hinweis-Banner, wenn Artikel abgelaufen sind.
 - **Rezepte**: ~34 Beispielrezepte (Seed-Daten), eigene Rezepte, Portionen-
   Skalierung, Favoriten (⭐), Filter nach Bestand/Zutat/Favorit und Import
   eines Rezepts aus kopiertem Text (wird automatisch geparst).
 - **Wochenplan**: Rezepte für Frühstück/Mittag/Abend pro Tag planen, Woche für
   Woche navigieren, Tage als erledigt markieren und den kompletten Plan in eine
   Einkaufsliste verwandeln (nur fehlende Zutaten).
-- **Einkaufsmodus**: große Touch-Flächen zum Abhaken im Laden, Fortschritts-
-  balken, „Gekauft → Bestand“ übernehmen; Liste kopieren/teilen/drucken und
-  als Vorlage speichern.
+- **Einkaufsmodus**: große Touch-Flächen zum Abhaken im Laden (mit Haptik),
+  Fortschrittsbalken, „Gekauft → Bestand“ übernehmen, Gedrückt-halten zum
+  Entfernen; Liste kopieren/teilen/drucken und als Vorlage speichern.
+- **Portionen-Skalierung**: Beim Hinzufügen eines Rezepts zur Einkaufsliste
+  kann die Portionszahl gewählt werden – „Smart neu berechnen“ und
+  „Plan → Einkaufsliste“ skalieren die Zutaten entsprechend.
+- **Kochen-Modus**: In der Rezept-Ansicht zieht „Kochen – Bestand abziehen“
+  die verbrauchten (skalierten) Zutaten automatisch aus dem Bestand ab;
+  aufgebrauchte Artikel werden entfernt.
 - **Statistik** (lokal): Einkaufs-Historie, meistgekaufte Artikel, Kategorie-
   Verteilung und letzte Einkäufe.
 - Export/Import inkl. Migration alter Backup-Formate (übernimmt auch Plan,

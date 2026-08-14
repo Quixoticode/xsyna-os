@@ -1114,7 +1114,7 @@ export async function approvePublishedModel(id, approved = true) {
   }
 }
 
-// --- Invite Codes ---
+// --- Invite Codes (edit-check) ---
 
 export async function getInviteCodes() {
   try {

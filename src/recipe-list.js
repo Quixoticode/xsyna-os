@@ -15,6 +15,7 @@ import "./js/api-assets.js";
 import { toast, confirmModal, escapeHtml } from "./js/ui.js";
 import {
   Synaptic,
+  normalize,
   parseLine,
   parseText,
   extractFromOcr,
@@ -43,6 +44,7 @@ const LS = {
   plan: "xsynarec_plan",
   history: "xsynarec_history",
   favs: "xsynarec_favs",
+  servings: "xsynarec_servings",
 };
 
 const state = {
@@ -54,11 +56,13 @@ const state = {
   selectedRecipes: new Set(),
   tab: "bestand",
   hideDone: false,
+  invFilter: "all",
   recipeFilter: { query: "", ingredient: "", status: "any", sort: "match" },
   currentSuggestions: [],
   plan: {},
   history: [],
   favs: new Set(),
+  servings: {},
   planWeekOffset: 0,
 };
 
@@ -411,6 +415,7 @@ function openShoppingMode() {
     <div class="shop-footer">
       <button class="btn btn-secondary btn-sm" id="shop-all">Alle abhaken</button>
       <button class="btn btn-secondary btn-sm" id="shop-unall">Zurücksetzen</button>
+      <div class="shop-hint">Tippen = abhaken · Gedrückt halten = aus der Liste entfernen</div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -454,9 +459,34 @@ function openShoppingMode() {
       </div>`).join("");
 
     scroll.querySelectorAll(".shop-item").forEach((row) => {
+      let pressTimer = null;
+      let longPressed = false;
+      const clearPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+      row.addEventListener("pointerdown", () => {
+        clearPress();
+        longPressed = false;
+        pressTimer = setTimeout(() => {
+          pressTimer = null;
+          longPressed = true;
+          if (navigator.vibrate) navigator.vibrate([25, 50, 25]);
+          const item = currentListItems.find((i) => itemKey(i) === row.dataset.key);
+          if (item) {
+            currentListItems = currentListItems.filter((i) => itemKey(i) !== row.dataset.key);
+            persistCurrentList();
+            toast(`„${item.name}“ entfernt.`, "info");
+            render();
+          }
+        }, 650);
+      });
+      row.addEventListener("pointerup", clearPress);
+      row.addEventListener("pointerleave", clearPress);
+      row.addEventListener("pointercancel", clearPress);
+      row.addEventListener("contextmenu", (e) => e.preventDefault());
       row.addEventListener("click", () => {
+        if (longPressed) { longPressed = false; return; }
         const item = currentListItems.find((i) => itemKey(i) === row.dataset.key);
         if (item) item.done = !item.done;
+        if (navigator.vibrate) navigator.vibrate(10);
         persistCurrentList();
         render();
       });
@@ -635,6 +665,10 @@ function persistCurrentList() {
   writeLS(LS.currentTitle, currentListTitle);
 }
 
+function persistServings() {
+  writeLS(LS.servings, state.servings);
+}
+
 async function loadAll() {
   state.inventory = readLS(LS.inventory, []);
   state.recipes = readLS(LS.recipes, []);
@@ -645,6 +679,10 @@ async function loadAll() {
   state.plan = readLS(LS.plan, {});
   state.history = readLS(LS.history, []);
   state.favs = new Set(readLS(LS.favs, []));
+  state.servings = readLS(LS.servings, {});
+  for (const rid of Object.keys(state.servings)) {
+    if (!state.recipes.some((r) => r.id === rid)) delete state.servings[rid];
+  }
   // Verwaiste Plan-Einträge (gelöschte Rezepte) aufräumen
   for (const iso of Object.keys(state.plan)) {
     const day = state.plan[iso];
@@ -725,6 +763,7 @@ function exportData() {
     plan: state.plan,
     history: state.history,
     favs: [...state.favs],
+    servings: state.servings,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -774,6 +813,7 @@ function importData() {
       state.plan = data.plan || {};
       state.history = Array.isArray(data.history) ? data.history : [];
       state.favs = new Set(Array.isArray(data.favs) ? data.favs : []);
+      state.servings = data.servings && typeof data.servings === "object" ? data.servings : {};
       await persistInventory();
       await persistRecipes();
       await persistLists();
@@ -1193,10 +1233,22 @@ function renderContent() {
 // BESTAND
 // ============================================================
 function renderInventory() {
-  const groups = groupByCategory(state.inventory);
-  const total = state.inventory.length;
+  const filter = state.invFilter;
+  const list = state.inventory;
+  const filtered = list.filter((i) => {
+    const exp = expiryInfo(i);
+    if (filter === "expired") return !!exp && exp.expired;
+    if (filter === "soon") return !!exp && !exp.expired && exp.soon;
+    if (filter === "none") return !i.expires;
+    return true;
+  });
+  const groups = groupByCategory(filtered);
+  const total = list.length;
+  const expired = list.filter((i) => { const e = expiryInfo(i); return !!e && e.expired; }).length;
+  const soon = list.filter((i) => { const e = expiryInfo(i); return !!e && !e.expired && e.soon; }).length;
+  const noMhd = list.filter((i) => !i.expires).length;
   const cards = CATEGORIES.map((c) => {
-    const count = state.inventory.filter((i) => i.category === c).length;
+    const count = list.filter((i) => i.category === c).length;
     return count ? `<span class="rec-kpi">${escapeHtml(c)}: <b style="color: var(--lime);">${count}</b></span>` : "";
   }).filter(Boolean).join("");
 
@@ -1212,6 +1264,13 @@ function renderInventory() {
     `;
   }
 
+  const chips = [
+    ["all", "Alle", total],
+    ["expired", "✕ Abgelaufen", expired],
+    ["soon", "⚠ Läuft bald ab", soon],
+    ["none", "Ohne MHD", noMhd],
+  ].map(([id, label, n]) => `<button class="rec-filter ${filter === id ? "active" : ""}" data-filter="${id}">${label} <span class="rec-filter-count">${n}</span></button>`).join("");
+
   return `
     <div class="rec-toolbar">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -1224,11 +1283,17 @@ function renderInventory() {
         <button class="btn btn-lime btn-sm" id="btn-add-item">${ICONS.plus} Hinzufügen</button>
       </div>
     </div>
+    ${expired ? `
+      <div class="card rec-warning-strip" style="margin-bottom:16px; padding:12px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-color: rgba(239,68,68,0.35);">
+        <span style="color: var(--error); font-weight: 600;">${expired} ${expired === 1 ? "Artikel ist" : "Artikel sind"} abgelaufen</span>
+        <span style="color: var(--text-muted); font-size: 0.8rem;">Mindesthaltbarkeit prüfen und aussortieren.</span>
+        <button class="rec-link" id="btn-show-expired" style="margin-left: auto;">Anzeigen</button>
+      </div>` : ""}
     <div class="rec-kpis">${cards}</div>
+    <div class="rec-filter-chips">${chips}</div>
     <div id="inv-groups">${groups.map(([cat, items]) => renderInvGroup(cat, items)).join("")}</div>
   `;
 }
-
 function renderInvGroup(cat, items) {
   return `
     <div class="rec-group">
@@ -1243,17 +1308,21 @@ function renderInvGroup(cat, items) {
 function renderInvRow(item) {
   const srcIcon = item.source === "camera" ? ICONS.camera : item.source === "mic" ? ICONS.mic : item.source === "barcode" ? ICONS.barcode : ICONS.type;
   const srcTitle = item.source === "camera" ? "per Kamera erfasst" : item.source === "mic" ? "per Sprache erfasst" : item.source === "barcode" ? "per Barcode erfasst" : "manuell erfasst";
+  const exp = expiryInfo(item);
+  const expChip = exp
+    ? `<span class="rec-expiry ${exp.expired ? "expired" : exp.soon ? "soon" : "ok"}" title="Mindesthaltbarkeit: ${formatDate(item.expires)}${exp.expired ? " – abgelaufen" : exp.soon ? " – läuft bald ab" : ""}">${exp.expired ? "✕ " : exp.soon ? "⚠ " : "✓ "}${formatDate(item.expires)}</span>`
+    : "";
   return `
     <div class="rec-row" data-id="${item.id}">
       <span class="rec-src" title="${srcTitle}">${srcIcon}</span>
       <span class="rec-name">${escapeHtml(item.name)}</span>
       <span class="rec-amount">${formatAmount(item)}</span>
+      ${expChip}
       <button class="rec-icon-btn" data-act="edit" title="Menge ändern">${ICONS.edit}</button>
       <button class="rec-icon-btn danger" data-act="del" title="Löschen">${ICONS.trash}</button>
     </div>
   `;
 }
-
 // ============================================================
 // REZEPTE
 // ============================================================
@@ -1352,6 +1421,30 @@ function selectedRecipeObjects() {
   return state.recipes.filter((r) => state.selectedRecipes.has(r.id));
 }
 
+// Rezepte inkl. gewählter Portionen (skaliert) für die Einkaufsliste
+function scaledSelectedRecipes() {
+  return selectedRecipeObjects().map((r) => {
+    const servings = state.servings[r.id] || r.servings || 2;
+    const factor = servings / (r.servings || 2);
+    return { ...r, servings, ingredients: scaleIngredients(r.ingredients || [], factor) };
+  });
+}
+
+// Zutaten aus dem Bestand abziehen („Kochen“); aufgebrauchte Artikel entfernen
+function subtractIngredients(scaledIngredients) {
+  let removed = 0;
+  for (const ing of scaledIngredients) {
+    if (ing.amount == null) continue;
+    const match = state.inventory.find((i) => labelLike(i.name, ing.name));
+    if (!match || match.amount == null) continue;
+    match.amount = Math.max(0, Math.round((match.amount - ing.amount) * 100) / 100);
+    if (match.amount === 0) {
+      state.inventory = state.inventory.filter((i) => i.id !== match.id);
+      removed++;
+    }
+  }
+  return removed;
+}
 function renderShopping() {
   const selected = selectedRecipeObjects();
   const saved = state.lists;
@@ -1392,7 +1485,11 @@ function renderShopping() {
     ${selected.length ? `
       <div class="card" style="padding: 14px 16px; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
         <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 4px;">Rezepte:</span>
-        ${selected.map((r) => `<span class="rec-chip">${escapeHtml(r.title)} <button class="rec-chip-x" data-recipe="${r.id}">×</button></span>`).join("")}
+        ${selected.map((r) => {
+          const sv = state.servings[r.id];
+          const svText = sv ? ` <span class="rec-chip-sub">${sv} Port.</span>` : "";
+          return `<span class="rec-chip">${escapeHtml(r.title)}${svText} <button class="rec-chip-x" data-recipe="${r.id}">×</button></span>`;
+        }).join("")}
         <label style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-secondary); cursor: pointer;">
           <input type="checkbox" id="hide-done" ${state.hideDone ? "checked" : ""} /> Erledigte ausblenden
         </label>
@@ -1464,16 +1561,33 @@ function bindInventory() {
   if (search) {
     search.addEventListener("input", () => {
       const q = search.value.trim().toLowerCase();
-      const groups = groupByCategory(
-        q ? state.inventory.filter((i) => i.name.toLowerCase().includes(q) || (i.category || "").toLowerCase().includes(q)) : state.inventory
-      );
-      $("inv-groups").innerHTML = groups.map(([cat, items]) => renderInvGroup(cat, items)).join("");
+      let items = q
+        ? state.inventory.filter((i) => i.name.toLowerCase().includes(q) || (i.category || "").toLowerCase().includes(q))
+        : state.inventory;
+      items = items.filter((i) => {
+        const exp = expiryInfo(i);
+        if (state.invFilter === "expired") return !!exp && exp.expired;
+        if (state.invFilter === "soon") return !!exp && !exp.expired && exp.soon;
+        if (state.invFilter === "none") return !i.expires;
+        return true;
+      });
+      const groups = groupByCategory(items);
+      $("inv-groups").innerHTML = groups.map(([cat, items2]) => renderInvGroup(cat, items2)).join("");
       bindInvRows();
     });
   }
+  document.querySelectorAll("#app-content .rec-filter").forEach((b) => {
+    b.addEventListener("click", () => {
+      state.invFilter = b.dataset.filter;
+      renderContent();
+    });
+  });
+  $("btn-show-expired")?.addEventListener("click", () => {
+    state.invFilter = "expired";
+    renderContent();
+  });
   bindInvRows();
 }
-
 function bindInvRows() {
   document.querySelectorAll("#app-content .rec-row[data-id]").forEach((row) => {
     const id = row.dataset.id;
@@ -1517,12 +1631,17 @@ function bindRecipes() {
       rerenderRecipes();
     });
     card.querySelector('[data-act="toggleshop"]')?.addEventListener("click", () => {
-      if (state.selectedRecipes.has(id)) state.selectedRecipes.delete(id);
-      else state.selectedRecipes.add(id);
-      writeLS(LS.selected, [...state.selectedRecipes]);
-      renderTabs();
-      rerenderRecipes();
-      toast(state.selectedRecipes.has(id) ? "Rezept zur Einkaufsliste hinzugefügt." : "Rezept abgewählt.", "info");
+      if (state.selectedRecipes.has(id)) {
+        state.selectedRecipes.delete(id);
+        delete state.servings[id];
+        persistServings();
+        writeLS(LS.selected, [...state.selectedRecipes]);
+        renderTabs();
+        rerenderRecipes();
+        toast("Rezept abgewählt.", "info");
+      } else {
+        openServingsPicker(id);
+      }
     });
   });
 }
@@ -1533,12 +1652,58 @@ function rerenderRecipes() {
   bindRecipes();
 }
 
+// Portionen für ein Rezept wählen, bevor es zur Einkaufsliste kommt
+function openServingsPicker(recipeId) {
+  const r = state.recipes.find((x) => x.id === recipeId);
+  if (!r) return;
+  let servings = r.servings || 2;
+  const overlay = document.createElement("div");
+  overlay.className = "rec-overlay";
+  overlay.innerHTML = [
+    '<div class="rec-modal" style="max-width: 380px;">',
+    '  <div class="rec-modal-head">',
+    '    <h3 style="font-size: 1rem;">' + ICONS.cart + ' Für Einkaufsliste wählen</h3>',
+    '    <button class="rec-icon-btn" data-close>' + ICONS.x + '</button>',
+    '  </div>',
+    '  <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 14px;">' + escapeHtml(r.title) + ' – für wie viele Portionen soll gerechnet werden?</p>',
+    '  <div style="display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 18px;">',
+    '    <button class="btn btn-secondary btn-sm" id="svc-pick-minus">−</button>',
+    '    <span id="svc-pick-val" style="font-family: var(--font-mono); font-size: 1.15rem; min-width: 44px; text-align: center;">' + servings + '</span>',
+    '    <button class="btn btn-secondary btn-sm" id="svc-pick-plus">+</button>',
+    '    <span style="color: var(--text-muted); font-size: 0.78rem;">Portionen</span>',
+    '  </div>',
+    '  <div class="rec-modal-foot">',
+    '    <button class="btn btn-secondary btn-sm" data-cancel>Abbrechen</button>',
+    '    <button class="btn btn-lime btn-sm" id="btn-pick-confirm">' + ICONS.check + ' Hinzufügen</button>',
+    '  </div>',
+    '</div>',
+  ].join("\n");
+  document.body.appendChild(overlay);
+  const val = overlay.querySelector("#svc-pick-val");
+  const update = () => { val.textContent = servings; };
+  overlay.querySelector("#svc-pick-minus").addEventListener("click", () => { if (servings > 1) { servings--; update(); } });
+  overlay.querySelector("#svc-pick-plus").addEventListener("click", () => { if (servings < 20) { servings++; update(); } });
+  const close = () => overlay.remove();
+  overlay.querySelector("[data-close]").addEventListener("click", close);
+  overlay.querySelector("[data-cancel]").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector("#btn-pick-confirm").addEventListener("click", () => {
+    state.selectedRecipes.add(recipeId);
+    state.servings[recipeId] = servings;
+    persistServings();
+    writeLS(LS.selected, [...state.selectedRecipes]);
+    close();
+    renderTabs();
+    rerenderRecipes();
+    toast("Rezept (" + servings + " Port.) zur Einkaufsliste hinzugefügt.", "success");
+  });
+}
 function bindShopping() {
   $("btn-shop-mode")?.addEventListener("click", () => { if (currentListItems.length) openShoppingMode(); });
   $("btn-consume")?.addEventListener("click", consumeDoneItems);
 
   $("btn-recalc")?.addEventListener("click", () => {
-    const selected = selectedRecipeObjects();
+    const selected = scaledSelectedRecipes();
     if (!selected.length) { toast("Erst Rezepte auswählen (Tab „Rezepte“).", "warning"); return; }
     const t0 = performance.now();
     const grouped = buildShoppingList(selected, state.inventory);
@@ -1939,7 +2104,7 @@ function cleanupStream() {
   }
 }
 
-function renderCandidates(overlay, foot) { /* TOOLCHECK */
+function renderCandidates(overlay, foot) {
   const wrap = overlay.querySelector("#add-candidates");
   const confirmBtn = overlay.querySelector("#btn-confirm-add");
   if (!addModalCandidates.length) {
@@ -2011,6 +2176,8 @@ function openAmountEditor(item) {
         <input id="edit-amount" class="rec-input" type="number" step="any" min="0" value="${item.amount ?? ""}" placeholder="Menge" style="width: 110px;" />
         <input id="edit-unit" class="rec-input" value="${escapeHtml(item.unit)}" placeholder="Einheit" style="flex: 1;" />
       </div>
+      <label class="rec-label" style="margin-top: 12px;">Mindesthaltbarkeit (optional)</label>
+      <input id="edit-expires" class="rec-input" type="date" value="${escapeHtml(item.expires || "")}" style="width: 100%;" />
       <div class="rec-modal-foot">
         <button class="btn btn-secondary btn-sm" data-close2>Abbrechen</button>
         <button class="btn btn-lime btn-sm" id="btn-save-edit">Speichern</button>
@@ -2026,6 +2193,7 @@ function openAmountEditor(item) {
     const a = overlay.querySelector("#edit-amount").value.trim();
     item.amount = a === "" ? null : Number(a.replace(",", "."));
     item.unit = overlay.querySelector("#edit-unit").value.trim();
+    item.expires = overlay.querySelector("#edit-expires")?.value || null;
     await persistInventory();
     close();
     renderContent();
@@ -2067,6 +2235,8 @@ function openRecipeModal(id) {
         if (!(await confirmModal(`Rezept „${existing.title}“ löschen?`))) return;
         state.recipes = state.recipes.filter((r) => r.id !== existing.id);
         state.selectedRecipes.delete(existing.id);
+        delete state.servings[existing.id];
+        persistServings();
         await persistRecipes();
         overlay.remove();
         renderContent();
@@ -2074,6 +2244,18 @@ function openRecipeModal(id) {
       }));
       body.querySelector("[data-copy]")?.addEventListener("click", () => copyRecipeText(existing, servings));
       body.querySelector("[data-print]")?.addEventListener("click", () => printRecipe(existing, servings));
+      body.querySelector("[data-cook]")?.addEventListener("click", async () => {
+        const factor = servings / (existing.servings || 2);
+        const scaled = scaleIngredients(existing.ingredients || [], factor);
+        const withAmount = scaled.filter((i) => i.amount != null);
+        if (!withAmount.length) { toast("Keine Mengenangaben zum Abziehen.", "warning"); return; }
+        if (!(await confirmModal(`Zutaten von „${existing.title}“ (${servings} Port.) aus dem Bestand abziehen? ${withAmount.length} Artikel werden reduziert.`))) return;
+        const removed = subtractIngredients(withAmount);
+        await persistInventory();
+        overlay.remove();
+        renderContent();
+        toast(removed ? `Gekocht! ${removed} ${removed === 1 ? "Artikel war" : "Artikel waren"} aufgebraucht und entfernt.` : "Gekocht – Bestand aktualisiert.", "success");
+      });
     };
     renderDetail(existing.servings || 2);
   } else {
@@ -2118,6 +2300,7 @@ function renderRecipeDetail(r, servings) {
       <button class="btn btn-secondary btn-sm" data-del>${ICONS.trash} Löschen</button>
       <button class="btn btn-secondary btn-sm" data-copy>${ICONS.copy} Kopieren</button>
       <button class="btn btn-secondary btn-sm" data-print>${ICONS.print} Drucken</button>
+      <button class="btn btn-secondary btn-sm" data-cook title="Verbrauchte Zutaten aus dem Bestand abziehen">${ICONS.check} Kochen – Bestand abziehen</button>
       <button class="btn btn-lime btn-sm" data-edit>${ICONS.edit} Bearbeiten</button>
     </div>
   `;
@@ -2272,6 +2455,30 @@ function itemKey(i) {
   return `${i.name}|${i.unit || ""}`;
 }
 
+// MHD / Mindesthaltbarkeit
+function daysUntil(iso) {
+  if (!iso) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(iso);
+  d.setHours(0, 0, 0, 0);
+  return Math.round((d - today) / 86400000);
+}
+function expiryInfo(item) {
+  const days = daysUntil(item.expires);
+  if (days == null) return null;
+  return { days, expired: days < 0, soon: days >= 0 && days <= 5 };
+}
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+function labelLike(a, b) {
+  const na = normalize(a);
+  const nb = normalize(b);
+  return !!na && !!nb && (na === nb || na.includes(nb) || nb.includes(na));
+}
 function isoDateLocal(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -2405,7 +2612,13 @@ function bindPlan() {
       const day = state.plan[isoDateLocal(d)] || {};
       for (const meal of ["fruehstueck", "mittag", "abend"]) if (day[meal]) ids.add(day[meal]);
     }
-    const planned = state.recipes.filter((r) => ids.has(r.id));
+    const planned = state.recipes
+      .filter((r) => ids.has(r.id))
+      .map((r) => {
+        const servings = state.servings[r.id] || r.servings || 2;
+        const factor = servings / (r.servings || 2);
+        return { ...r, servings, ingredients: scaleIngredients(r.ingredients || [], factor) };
+      });
     if (!planned.length) { toast("In dieser Woche ist nichts geplant.", "warning"); return; }
     const grouped = buildShoppingList(planned, state.inventory);
     currentListItems = grouped.flatMap(([, items]) => items);
