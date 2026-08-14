@@ -2,6 +2,12 @@
 // xSyna — Rezeptliste (/recipe-list)
 // Bestand verwalten · Rezepte finden · Einkaufslisten smart bauen
 // Powered by Synaptic Foundation Model (lokal im Browser)
+//
+// STANDALONE: Die App funktioniert komplett ohne Account und
+// offline. Alle Daten liegen lokal (localStorage) und sind jederzeit
+// exportierbar. Wenn ein xSyna-Account angemeldet ist, wird still
+// ein Cloud-Backup geschrieben – ohne dass man sich anmelden muss.
+// Es gibt keine Links zurück zur Website (PWA-Falle).
 // ============================================================
 import { supabase } from "./js/supabase.js";
 import "./js/sw-register.js";
@@ -18,7 +24,9 @@ import {
   buildShoppingList,
   groupByCategory,
   formatAmount,
+  scaleIngredients,
   modelInfo,
+  kbStats,
   CATEGORIES,
 } from "./js/synaptic.js";
 
@@ -28,18 +36,24 @@ const LS = {
   recipes: "xsynarec_recipes",
   lists: "xsynarec_lists",
   selected: "xsynarec_selected",
+  current: "xsynarec_current",
+  currentTitle: "xsynarec_current_title",
 };
 
 const state = {
-  mode: "local", // "cloud" | "local"
   user: null,
+  cloudOk: false,
   inventory: [],
   recipes: [],
   lists: [],
-  selectedRecipes: new Set(), // recipe ids für die Einkaufsliste
+  selectedRecipes: new Set(),
   tab: "bestand",
+  hideDone: false,
   recipeFilter: { query: "", ingredient: "", status: "any", sort: "match" },
 };
+
+let currentListItems = [];
+let currentListTitle = "Einkaufsliste";
 
 const ICONS = {
   box: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg>',
@@ -55,10 +69,13 @@ const ICONS = {
   check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
   link: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
   edit: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  print: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+  download: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  upload: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
 };
 
 // ============================================================
-// Store (Cloud + localStorage-Fallback)
+// Store — lokal first, optionales Cloud-Backup
 // ============================================================
 function uuid() {
   return (crypto.randomUUID && crypto.randomUUID()) || "id-" + Date.now() + "-" + Math.random().toString(36).slice(2);
@@ -68,7 +85,7 @@ function readLS(key, def) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
 }
 function writeLS(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* volle */ }
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* voll */ }
 }
 
 function mapRow(row) {
@@ -83,148 +100,194 @@ function mapRow(row) {
   };
 }
 
-async function setCloudMode() {
-  const { data } = await supabase.auth.getSession();
-  state.user = data?.session?.user || null;
-  state.mode = state.user ? "cloud" : "local";
-  renderModeBanner();
+function mapRecipe(r) {
+  return {
+    id: r.id,
+    title: r.title,
+    servings: r.servings || 2,
+    ingredients: r.ingredients || [],
+    instructions: r.instructions || "",
+    tags: r.tags || [],
+    is_public: !!r.is_public,
+    created_at: r.created_at,
+  };
 }
 
-async function loadAll() {
-  await setCloudMode();
-  if (state.mode === "cloud") {
-    try {
-      const [{ data: inv, error: e1 }, { data: rec, error: e2 }, { data: lists, error: e3 }] = await Promise.all([
-        supabase.from("recipe_inventory").select("*").order("created_at", { ascending: false }),
-        supabase.from("recipes").select("*").order("created_at", { ascending: false }),
-        supabase.from("shopping_lists").select("*").order("updated_at", { ascending: false }),
-      ]);
-      if (e1 || e2 || e3) throw new Error((e1 || e2 || e3).message);
-      state.inventory = (inv || []).map(mapRow);
-      state.recipes = (rec || []).map((r) => ({
-        id: r.id,
-        title: r.title,
-        servings: r.servings,
-        ingredients: r.ingredients || [],
-        instructions: r.instructions || "",
-        tags: r.tags || [],
-        is_public: !!r.is_public,
-        created_at: r.created_at,
-      }));
-      state.lists = (lists || []).map((l) => ({ id: l.id, title: l.title, items: l.items || [], created_at: l.created_at }));
-    } catch (e) {
-      console.warn("[Rezeptliste] Cloud-Fehler, Fallback auf lokal:", e);
-      state.mode = "local";
-      state.inventory = readLS(LS.inventory, []);
-      state.recipes = readLS(LS.recipes, []);
-      state.lists = readLS(LS.lists, []);
-      toast("Cloud nicht erreichbar – Offline-/Gastmodus aktiv.", "warning", 5000);
+function mapList(l) {
+  return { id: l.id, title: l.title, items: l.items || [], created_at: l.created_at };
+}
+
+async function cloudBackup(table, rows) {
+  if (!state.user) return;
+  try {
+    await supabase.from(table).delete().eq("user_id", state.user.id);
+    if (rows.length) {
+      const { error } = await supabase.from(table).insert(rows.map((r) => ({ user_id: state.user.id, ...r })));
+      if (error) throw error;
     }
-  } else {
-    state.inventory = readLS(LS.inventory, []);
-    state.recipes = readLS(LS.recipes, []);
-    state.lists = readLS(LS.lists, []);
+    state.cloudOk = true;
+  } catch (e) {
+    console.warn("[Rezeptliste] Backup fehlgeschlagen:", table, e);
+    state.cloudOk = false;
   }
-  state.selectedRecipes = new Set(readLS(LS.selected, []));
-  renderModeBanner();
+  renderStatus();
 }
 
 async function persistInventory() {
   writeLS(LS.inventory, state.inventory);
-  if (state.mode !== "cloud" || !state.user) return;
-  try {
-    const { error } = await supabase.from("recipe_inventory").delete().eq("user_id", state.user.id);
-    if (error) throw error;
-    if (state.inventory.length) {
-      const { error: insErr } = await supabase.from("recipe_inventory").insert(
-        state.inventory.map((i) => ({
-          user_id: state.user.id,
-          name: i.name,
-          amount: i.amount,
-          unit: i.unit,
-          category: i.category,
-          source: i.source,
-        }))
-      );
-      if (insErr) throw insErr;
-    }
-  } catch (e) {
-    console.warn("[Rezeptliste] Cloud-Sync Inventar fehlgeschlagen:", e);
-    state.mode = "local";
-    renderModeBanner();
-  }
+  await cloudBackup("recipe_inventory", state.inventory.map((i) => ({
+    name: i.name, amount: i.amount, unit: i.unit, category: i.category, source: i.source,
+  })));
 }
 
 async function persistRecipes() {
   writeLS(LS.recipes, state.recipes);
-  if (state.mode !== "cloud" || !state.user) return;
-  try {
-    const { error } = await supabase.from("recipes").delete().eq("user_id", state.user.id);
-    if (error) throw error;
-    if (state.recipes.length) {
-      const { error: insErr } = await supabase.from("recipes").insert(
-        state.recipes.map((r) => ({
-          user_id: state.user.id,
-          title: r.title,
-          servings: r.servings || 2,
-          ingredients: r.ingredients || [],
-          instructions: r.instructions || "",
-          tags: r.tags || [],
-          is_public: !!r.is_public,
-        }))
-      );
-      if (insErr) throw insErr;
-    }
-  } catch (e) {
-    console.warn("[Rezeptliste] Cloud-Sync Rezepte fehlgeschlagen:", e);
-    state.mode = "local";
-    renderModeBanner();
-  }
+  await cloudBackup("recipes", state.recipes.map((r) => ({
+    title: r.title, servings: r.servings || 2, ingredients: r.ingredients || [],
+    instructions: r.instructions || "", tags: r.tags || [], is_public: !!r.is_public,
+  })));
 }
 
 async function persistLists() {
   writeLS(LS.lists, state.lists);
-  if (state.mode !== "cloud" || !state.user) return;
+  await cloudBackup("shopping_lists", state.lists.map((l) => ({ title: l.title, items: l.items || [] })));
+}
+
+function persistCurrentList() {
+  writeLS(LS.current, currentListItems);
+  writeLS(LS.currentTitle, currentListTitle);
+}
+
+async function loadAll() {
+  state.inventory = readLS(LS.inventory, []);
+  state.recipes = readLS(LS.recipes, []);
+  state.lists = readLS(LS.lists, []);
+  state.selectedRecipes = new Set(readLS(LS.selected, []));
+  currentListItems = readLS(LS.current, []);
+  currentListTitle = readLS(LS.currentTitle, "Einkaufsliste");
+
+  state.user = null;
+  state.cloudOk = false;
   try {
-    const { error } = await supabase.from("shopping_lists").delete().eq("user_id", state.user.id);
-    if (error) throw error;
-    if (state.lists.length) {
-      const { error: insErr } = await supabase.from("shopping_lists").insert(
-        state.lists.map((l) => ({ user_id: state.user.id, title: l.title, items: l.items || [] }))
-      );
-      if (insErr) throw insErr;
+    const { data } = await supabase.auth.getSession();
+    if (data?.session?.user) {
+      state.user = data.session.user;
+      const [{ data: inv }, { data: rec }, { data: lists }] = await Promise.all([
+        supabase.from("recipe_inventory").select("*"),
+        supabase.from("recipes").select("*"),
+        supabase.from("shopping_lists").select("*"),
+      ]);
+      if (inv?.length && !state.inventory.length) state.inventory = inv.map(mapRow);
+      if (rec?.length && !state.recipes.length) state.recipes = rec.map(mapRecipe);
+      if (lists?.length && !state.lists.length) state.lists = lists.map(mapList);
+      state.cloudOk = true;
     }
   } catch (e) {
-    console.warn("[Rezeptliste] Cloud-Sync Listen fehlgeschlagen:", e);
-    state.mode = "local";
-    renderModeBanner();
+    console.warn("[Rezeptliste] Backup-Sync nicht möglich (unkritisch):", e);
+  }
+  renderStatus();
+}
+
+// ============================================================
+// Status-Chips & Banner
+// ============================================================
+function renderStatus() {
+  const banner = $("offline-banner");
+  if (banner) {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      banner.style.display = "flex";
+      banner.textContent = "Offline – Änderungen bleiben auf diesem Gerät und werden automatisch gespeichert.";
+    } else {
+      banner.style.display = "none";
+    }
+  }
+  const sync = $("sync-status");
+  if (sync) {
+    if (state.user && state.cloudOk) {
+      sync.style.display = "inline-flex";
+      sync.textContent = "☁ Backup aktiv";
+      sync.className = "sync-chip ok";
+      sync.title = "Automatisches Cloud-Backup über deinen xSyna-Account";
+    } else if (state.user && !state.cloudOk) {
+      sync.style.display = "inline-flex";
+      sync.textContent = "☁ Backup pausiert";
+      sync.className = "sync-chip warn";
+      sync.title = "Backup gerade nicht möglich – Daten bleiben sicher lokal";
+    } else {
+      sync.style.display = "none";
+    }
   }
 }
 
 // ============================================================
-// Banner & Nav
+// Export / Import
 // ============================================================
-function renderModeBanner() {
-  const banner = $("offline-banner");
-  if (!banner) return;
-  const authBtn = $("auth-btn");
-  if (authBtn) {
-    if (state.user) {
-      authBtn.innerHTML = `${ICONS.spark} Dashboard`;
-      authBtn.href = "/internal-services";
-    } else {
-      authBtn.innerHTML = `${ICONS.spark} Anmelden`;
-      authBtn.href = "/auth";
+function exportData() {
+  const data = {
+    app: "xsyna-rezeptliste",
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    inventory: state.inventory,
+    recipes: state.recipes,
+    lists: state.lists,
+    current: currentListItems,
+    currentTitle: currentListTitle,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `rezeptliste-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast("Backup exportiert.", "success");
+}
+
+function importData() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (data.app !== "xsyna-rezeptliste") {
+        toast("Keine gültige Rezeptliste-Datei.", "error");
+        return;
+      }
+      if (!(await confirmModal("Der Import ersetzt ALLE lokalen Daten (Bestand, Rezepte, Listen). Fortfahren?"))) return;
+      state.inventory = data.inventory || [];
+      state.recipes = data.recipes || [];
+      state.lists = data.lists || [];
+      currentListItems = data.current || [];
+      currentListTitle = data.currentTitle || "Einkaufsliste";
+      await persistInventory();
+      await persistRecipes();
+      await persistLists();
+      persistCurrentList();
+      renderContent();
+      toast(`Import fertig: ${state.inventory.length} Artikel, ${state.recipes.length} Rezepte.`, "success");
+    } catch (e) {
+      toast("Import fehlgeschlagen: " + e.message, "error");
     }
-  }
-  if (state.mode === "cloud" && state.user) {
-    banner.style.display = "none";
-  } else {
-    banner.style.display = "flex";
-    banner.innerHTML = state.user
-      ? `<span style="color: var(--text-secondary); font-size: 0.8rem;">⚠️ Offline-Sync unterbrochen – Änderungen werden lokal gespeichert.</span>`
-      : `<span style="color: var(--text-secondary); font-size: 0.8rem;">👤 Gast-/Offline-Modus – Daten nur auf diesem Gerät. <a href="/auth" style="color: var(--lime); text-decoration: underline;">Anmelden</a> für Cloud-Sync.</span>`;
-  }
+  };
+  input.click();
+}
+
+function printList() {
+  const w = window.open("", "_blank");
+  if (!w) { toast("Popup wurde blockiert.", "error"); return; }
+  const rows = currentListItems.length
+    ? currentListItems.map((i) => `<li class="${i.done ? "done" : ""}">${i.done ? "[x]" : "[ ]"} ${escapeHtml(formatAmount(i))} ${escapeHtml(i.name)}</li>`).join("")
+    : "<li>Leere Liste.</li>";
+  w.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Einkaufsliste</title>
+    <style>body{font-family:system-ui,-apple-system,sans-serif;padding:40px;color:#111}h1{font-size:20px;margin:0 0 6px}.meta{color:#666;font-size:12px;margin-bottom:24px}ul{list-style:none;padding:0;margin:0}li{padding:10px 4px;border-bottom:1px solid #e5e5e5;font-size:15px}.done{text-decoration:line-through;color:#999}</style></head>
+    <body><h1>${escapeHtml(currentListTitle)}</h1><p class="meta">xSyna Rezeptliste · ${new Date().toLocaleDateString("de-DE")} · ${currentListItems.filter((i) => i.done).length}/${currentListItems.length} erledigt</p><ul>${rows}</ul></body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
 }
 
 // ============================================================
@@ -238,6 +301,7 @@ const TABS = [
 
 function renderTabs() {
   const el = $("tab-bar");
+  if (!el) return;
   el.innerHTML = TABS.map(
     (t) => `
     <button class="rec-tab ${state.tab === t.id ? "active" : ""}" data-tab="${t.id}">
@@ -256,6 +320,7 @@ function switchTab(tab) {
 
 function renderContent() {
   const el = $("app-content");
+  if (!el) return;
   if (state.tab === "bestand") el.innerHTML = renderInventory();
   else if (state.tab === "rezepte") el.innerHTML = renderRecipes();
   else el.innerHTML = renderShopping();
@@ -268,18 +333,19 @@ function renderContent() {
 function renderInventory() {
   const groups = groupByCategory(state.inventory);
   const total = state.inventory.length;
-  const cards = CATEGORIES.slice(0, 3).map((c) => {
+  const cards = CATEGORIES.map((c) => {
     const count = state.inventory.filter((i) => i.category === c).length;
-    return `<span class="rec-kpi">${c}: <b style="color: var(--lime);">${count}</b></span>`;
-  }).join("");
+    return count ? `<span class="rec-kpi">${escapeHtml(c)}: <b style="color: var(--lime);">${count}</b></span>` : "";
+  }).filter(Boolean).join("");
 
   if (!total) {
     return `
       <div class="card rec-empty">
         ${ICONS.box}
         <h3>Dein Bestand ist leer</h3>
-        <p style="color: var(--text-secondary); max-width: 420px; margin: 0 auto 24px;">Trage ein, was du vorrätig hast – manuell, per Kamera (Etiketten-Scan) oder per Sprache. Die Synaptic-Engine erkennt Labels automatisch.</p>
+        <p style="color: var(--text-secondary); max-width: 460px; margin: 0 auto 24px;">Trage ein, was du vorrätig hast – manuell, per Kamera (Etiketten-Scan) oder per Sprache. Die Synaptic-Engine erkennt Labels automatisch.</p>
         <button class="btn btn-lime" id="btn-add-item">${ICONS.plus} Ersten Artikel hinzufügen</button>
+        <p style="margin-top: 14px; font-size: 0.75rem; color: var(--text-muted);">Du hast schon ein Backup? <button class="rec-link" id="btn-import">Hier importieren</button></p>
       </div>
     `;
   }
@@ -287,10 +353,14 @@ function renderInventory() {
   return `
     <div class="rec-toolbar">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <input id="inv-search" class="rec-input" placeholder="Bestand durchsuchen…" style="width: 240px;" />
+        <input id="inv-search" class="rec-input" placeholder="Bestand durchsuchen…" style="width: 220px;" />
         <span class="rec-kpi">${total} Artikel</span>
       </div>
-      <button class="btn btn-lime btn-sm" id="btn-add-item">${ICONS.plus} Hinzufügen</button>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-secondary btn-sm" id="btn-export" title="Alle Daten als JSON sichern">${ICONS.download} Export</button>
+        <button class="btn btn-secondary btn-sm" id="btn-import" title="Daten aus JSON wiederherstellen">${ICONS.upload} Import</button>
+        <button class="btn btn-lime btn-sm" id="btn-add-item">${ICONS.plus} Hinzufügen</button>
+      </div>
     </div>
     <div class="rec-kpis">${cards}</div>
     <div id="inv-groups">${groups.map(([cat, items]) => renderInvGroup(cat, items)).join("")}</div>
@@ -328,12 +398,14 @@ function renderInvRow(item) {
 function renderRecipes() {
   const f = state.recipeFilter;
   const scored = suggestRecipes(state.recipes, state.inventory, f);
+  const recipesTotal = state.recipes.length;
+  const machbar = scored.filter((s) => s.complete).length;
 
   return `
     <div class="rec-toolbar">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <input id="rec-search" class="rec-input" placeholder="Rezepte suchen…" style="width: 200px;" value="${escapeHtml(f.query)}" />
-        <input id="rec-ingredient" class="rec-input" placeholder="Zutat filtern (z. B. Tomaten)" style="width: 190px;" value="${escapeHtml(f.ingredient)}" />
+        <input id="rec-search" class="rec-input" placeholder="Rezepte suchen…" style="width: 190px;" value="${escapeHtml(f.query)}" />
+        <input id="rec-ingredient" class="rec-input" placeholder="Zutat filtern (z. B. Tomaten)" style="width: 180px;" value="${escapeHtml(f.ingredient)}" />
         <select id="rec-status" class="rec-input" style="width: auto;">
           <option value="any" ${f.status === "any" ? "selected" : ""}>Alle</option>
           <option value="complete" ${f.status === "complete" ? "selected" : ""}>Nur machbar (nichts fehlt)</option>
@@ -349,8 +421,8 @@ function renderRecipes() {
     </div>
 
     <div class="rec-kpis">
-      <span class="rec-kpi">${state.recipes.length} Rezepte</span>
-      <span class="rec-kpi">${scored.filter((s) => s.complete).length} machbar mit deinem Bestand</span>
+      <span class="rec-kpi">${recipesTotal} Rezepte</span>
+      <span class="rec-kpi">${machbar} machbar mit deinem Bestand</span>
     </div>
 
     ${scored.length ? `<div class="rec-cards">${scored.map(renderRecipeCard).join("")}</div>` : renderEmptyRecipes()}
@@ -362,7 +434,7 @@ function renderEmptyRecipes() {
     <div class="card rec-empty">
       ${ICONS.book}
       <h3>Keine Rezepte gefunden</h3>
-      <p style="color: var(--text-secondary); max-width: 420px; margin: 0 auto 24px;">Lege deine ersten Rezepte an – die Synaptic-Engine parst die Zutatenliste automatisch und gleicht sie mit deinem Bestand ab.</p>
+      <p style="color: var(--text-secondary); max-width: 440px; margin: 0 auto 24px;">Lege deine ersten Rezepte an – die Synaptic-Engine parst die Zutatenliste automatisch und gleicht sie mit deinem Bestand ab.</p>
       <button class="btn btn-lime" id="btn-new-recipe">${ICONS.plus} Rezept anlegen</button>
     </div>
   `;
@@ -370,7 +442,6 @@ function renderEmptyRecipes() {
 
 function renderRecipeCard(s) {
   const r = s.recipe;
-  const pct = Math.round(s.score * 100);
   const missingChips = s.missing.slice(0, 3).map((m) => `<span class="rec-chip">${escapeHtml(m.name)}</span>`).join("");
   const more = s.missing.length > 3 ? `<span class="rec-chip muted">+${s.missing.length - 3} mehr</span>` : "";
   const selected = state.selectedRecipes.has(r.id);
@@ -398,9 +469,6 @@ function renderRecipeCard(s) {
 // ============================================================
 // EINKAUFSLISTE
 // ============================================================
-let currentListItems = []; // [{name, amount, unit, category, done}]
-let currentListTitle = "Einkaufsliste";
-
 function selectedRecipeObjects() {
   return state.recipes.filter((r) => state.selectedRecipes.has(r.id));
 }
@@ -408,44 +476,55 @@ function selectedRecipeObjects() {
 function renderShopping() {
   const selected = selectedRecipeObjects();
   const saved = state.lists;
-  const groups = groupByCategory(currentListItems);
-  const doneCount = currentListItems.filter((i) => i.done).length;
+  const total = currentListItems.length;
+  const done = currentListItems.filter((i) => i.done).length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const visible = state.hideDone ? currentListItems.filter((i) => !i.done) : currentListItems;
+  const groups = groupByCategory(visible);
 
   return `
     <div class="rec-toolbar">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <input id="list-title" class="rec-input" value="${escapeHtml(currentListTitle)}" style="width: 220px;" placeholder="Listenname" />
-        <span class="rec-kpi">${currentListItems.length} Positionen · ${doneCount} erledigt</span>
+        <input id="list-title" class="rec-input" value="${escapeHtml(currentListTitle)}" style="width: 200px;" placeholder="Listenname" />
+        <span class="rec-kpi">${total} Positionen · ${done} erledigt</span>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <button class="btn btn-lime btn-sm" id="btn-recalc">${ICONS.spark} Smart neu berechnen</button>
         <button class="btn btn-secondary btn-sm" id="btn-add-manual">${ICONS.plus} Manuell</button>
-        <button class="btn btn-secondary btn-sm" id="btn-copy">Kopieren</button>
+        <button class="btn btn-secondary btn-sm" id="btn-print">${ICONS.print} Drucken</button>
         <button class="btn btn-secondary btn-sm" id="btn-save-list">Speichern</button>
       </div>
     </div>
 
-    <div class="rec-kpis">
-      <span class="rec-kpi">${selected.length} Rezepte ausgewählt</span>
-      <span class="rec-kpi">${currentListItems.length} Artikel</span>
-    </div>
+    ${total ? `
+      <div class="card rec-progress-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">Einkaufsfortschritt</span>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--lime);">${done}/${total} · ${pct}%</span>
+        </div>
+        <div class="rec-progress"><div style="width: ${pct}%"></div></div>
+        ${pct === 100 ? `<p style="margin-top: 10px; color: var(--lime); font-size: 0.85rem; font-weight: 500;">🎉 Alles erledigt – nichts mehr einzupacken!</p>` : ""}
+      </div>` : ""}
 
     ${selected.length ? `
-      <div class="card" style="padding: 16px; margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+      <div class="card" style="padding: 14px 16px; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
         <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 4px;">Rezepte:</span>
         ${selected.map((r) => `<span class="rec-chip">${escapeHtml(r.title)} <button class="rec-chip-x" data-recipe="${r.id}">×</button></span>`).join("")}
-        <button class="btn btn-secondary btn-sm" id="btn-clear-selection" style="margin-left: auto;">Auswahl leeren</button>
+        <label style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-secondary); cursor: pointer;">
+          <input type="checkbox" id="hide-done" ${state.hideDone ? "checked" : ""} /> Erledigte ausblenden
+        </label>
+        <button class="btn btn-secondary btn-sm" id="btn-clear-selection">Auswahl leeren</button>
       </div>` : `
-      <div class="card rec-empty" style="margin-bottom: 24px;">
+      <div class="card rec-empty" style="margin-bottom: 16px;">
         ${ICONS.cart}
         <h3>Noch keine Rezepte ausgewählt</h3>
-        <p style="color: var(--text-secondary); max-width: 460px; margin: 0 auto;">Gehe zu <b>Rezepte</b> und wähle Rezepte aus – die Einkaufsliste wird automatisch aus den Zutaten gebaut, die in deinem Bestand fehlen.</p>
+        <p style="color: var(--text-secondary); max-width: 460px; margin: 0 auto;">Gehe zu <b>Rezepte</b> und wähle Rezepte aus – die Einkaufsliste wird automatisch aus den Zutaten gebaut, die in deinem Bestand fehlen. Oder füge Artikel manuell hinzu.</p>
       </div>`}
 
     ${groups.length ? `
       <div style="margin-bottom: 24px;">
-        <div class="rec-group-head" style="margin-bottom: 8px;"><span>Fehlende Zutaten (${currentListItems.length})</span>
-          <span style="display:flex; gap:8px;"><button class="rec-link" id="btn-check-all">Alle abhaken</button><button class="rec-link" id="btn-uncheck-all">Zurücksetzen</button></span>
+        <div class="rec-group-head" style="margin-bottom: 8px;"><span>${state.hideDone ? "Offene Positionen" : "Fehlende Zutaten"} (${visible.length})</span>
+          <span style="display:flex; gap:10px;"><button class="rec-link" id="btn-check-all">Alle abhaken</button><button class="rec-link" id="btn-uncheck-all">Zurücksetzen</button></span>
         </div>
         ${groups.map(([cat, items]) => `
           <div class="rec-group">
@@ -464,7 +543,7 @@ function renderShopping() {
       <div class="card rec-empty">
         ${ICONS.spark}
         <h3>${selected.length ? "Alles vorhanden! 🎉" : "Liste ist leer"}</h3>
-        <p style="color: var(--text-secondary);">${selected.length ? "Für die ausgewählten Rezepte fehlt nichts in deinem Bestand." : "Klicke auf „Smart neu berechnen“, um die Liste aus deinen Rezepten zu bauen."}</p>
+        <p style="color: var(--text-secondary);">${selected.length ? "Für die ausgewählten Rezepte fehlt nichts in deinem Bestand." : "Klicke auf „Smart neu berechnen“, um die Liste aus deinen Rezepten zu bauen, oder füge Artikel manuell hinzu."}</p>
       </div>`}
 
     ${saved.length ? `
@@ -494,6 +573,8 @@ function bindCurrentTab() {
 
 function bindInventory() {
   $("btn-add-item")?.addEventListener("click", () => openAddModal());
+  $("btn-export")?.addEventListener("click", exportData);
+  $("btn-import")?.addEventListener("click", importData);
   const search = $("inv-search");
   if (search) {
     search.addEventListener("input", () => {
@@ -542,7 +623,7 @@ function bindRecipes() {
   document.querySelectorAll("#app-content .rec-recipe").forEach((card) => {
     const id = card.dataset.id;
     card.querySelector('[data-act="view"]')?.addEventListener("click", () => openRecipeModal(id));
-    card.querySelector('[data-act="toggleshop"]')?.addEventListener("click", async () => {
+    card.querySelector('[data-act="toggleshop"]')?.addEventListener("click", () => {
       if (state.selectedRecipes.has(id)) state.selectedRecipes.delete(id);
       else state.selectedRecipes.add(id);
       writeLS(LS.selected, [...state.selectedRecipes]);
@@ -566,33 +647,22 @@ function bindShopping() {
     const t0 = performance.now();
     const grouped = buildShoppingList(selected, state.inventory);
     currentListItems = grouped.flatMap(([, items]) => items);
+    persistCurrentList();
     toast(`Einkaufsliste mit ${currentListItems.length} Positionen erstellt (${Math.round(performance.now() - t0)} ms).`, "success");
     renderContent();
   });
 
   $("btn-add-manual")?.addEventListener("click", () => openAddModal(true));
-
-  $("btn-copy")?.addEventListener("click", async () => {
-    const text = currentListItems.length
-      ? currentListItems.map((i) => `${i.done ? "[x]" : "[ ]"} ${formatAmount(i)} ${i.name}`).join("\n")
-      : "Einkaufsliste ist leer.";
-    try {
-      await navigator.clipboard.writeText(text);
-      toast("Liste kopiert.", "success");
-    } catch {
-      prompt("Liste kopieren:", text);
-    }
-  });
+  $("btn-print")?.addEventListener("click", printList);
 
   $("btn-save-list")?.addEventListener("click", async () => {
     if (!currentListItems.length) { toast("Liste ist leer.", "warning"); return; }
     const title = ($("list-title")?.value || "").trim() || "Einkaufsliste";
+    currentListTitle = title;
     const existing = state.lists.find((l) => l.title === title);
-    if (existing) {
-      existing.items = currentListItems;
-    } else {
-      state.lists.unshift({ id: uuid(), title, items: currentListItems, created_at: new Date().toISOString() });
-    }
+    if (existing) existing.items = currentListItems;
+    else state.lists.unshift({ id: uuid(), title, items: currentListItems, created_at: new Date().toISOString() });
+    persistCurrentList();
     await persistLists();
     toast("Liste gespeichert.", "success");
     renderContent();
@@ -601,6 +671,12 @@ function bindShopping() {
   $("btn-clear-selection")?.addEventListener("click", () => {
     state.selectedRecipes.clear();
     writeLS(LS.selected, []);
+    renderContent();
+  });
+
+  const hideDone = $("hide-done");
+  if (hideDone) hideDone.addEventListener("change", () => {
+    state.hideDone = hideDone.checked;
     renderContent();
   });
 
@@ -616,6 +692,7 @@ function bindShopping() {
     btn.addEventListener("click", () => {
       const item = currentListItems.find((i) => i.name === btn.dataset.name);
       if (item) item.done = !item.done;
+      persistCurrentList();
       renderContent();
     });
   });
@@ -623,16 +700,19 @@ function bindShopping() {
   document.querySelectorAll("#app-content [data-remove]").forEach((btn) => {
     btn.addEventListener("click", () => {
       currentListItems = currentListItems.filter((i) => i.name !== btn.dataset.remove);
+      persistCurrentList();
       renderContent();
     });
   });
 
   $("btn-check-all")?.addEventListener("click", () => {
     currentListItems.forEach((i) => (i.done = true));
+    persistCurrentList();
     renderContent();
   });
   $("btn-uncheck-all")?.addEventListener("click", () => {
     currentListItems.forEach((i) => (i.done = false));
+    persistCurrentList();
     renderContent();
   });
 
@@ -642,6 +722,7 @@ function bindShopping() {
       if (!list) return;
       currentListItems = list.items.map((i) => ({ ...i }));
       currentListTitle = list.title;
+      persistCurrentList();
       renderContent();
       toast(`Liste „${list.title}“ geladen.`, "success");
     });
@@ -657,7 +738,7 @@ function bindShopping() {
   });
 
   const titleInput = $("list-title");
-  if (titleInput) titleInput.addEventListener("input", () => (currentListTitle = titleInput.value));
+  if (titleInput) titleInput.addEventListener("input", () => { currentListTitle = titleInput.value; persistCurrentList(); });
 }
 
 // ============================================================
@@ -702,6 +783,7 @@ function openAddModal(forShoppingList = false) {
         ...currentListItems,
         ...selected.map((s) => ({ name: s.name, amount: s.amount, unit: s.unit || "", category: s.category || "Sonstiges", done: false })),
       ]);
+      persistCurrentList();
     } else {
       for (const s of selected) {
         const existing = state.inventory.find((i) => i.name === s.name && (i.unit || "") === (s.unit || ""));
@@ -732,7 +814,7 @@ function openAddModal(forShoppingList = false) {
   });
 }
 
-function activateAddMode(mode, overlay, forShoppingList) {
+function activateAddMode(mode, overlay) {
   overlay.querySelectorAll(".rec-source").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
   const body = overlay.querySelector("#add-mode-body");
   const foot = overlay.querySelector("#add-foot");
@@ -786,7 +868,7 @@ function activateAddMode(mode, overlay, forShoppingList) {
         body.querySelector("#ocr-progress").style.display = "none";
       } catch (e) {
         body.querySelector("#ocr-progress").style.display = "none";
-        body.innerHTML = `<p style="color: var(--error); font-size: 0.85rem;">OCR fehlgeschlagen: ${escapeHtml(e.message)}<br><span style="color: var(--text-muted);">Offline? OCR-Modell wird beim ersten Mal aus dem CDN geladen.</span></p>`;
+        body.innerHTML = `<p style="color: var(--error); font-size: 0.85rem;">OCR fehlgeschlagen: ${escapeHtml(e.message)}<br><span style="color: var(--text-muted);">Offline? Das OCR-Modell wird beim ersten Scan aus dem CDN geladen.</span></p>`;
       }
     });
   } else {
@@ -978,7 +1060,7 @@ function openAmountEditor(item) {
 }
 
 // ============================================================
-// Modal: Rezept anlegen / ansehen
+// Modal: Rezept anlegen / ansehen (mit Portionen-Skalierung)
 // ============================================================
 function openRecipeModal(id) {
   const existing = id ? state.recipes.find((r) => r.id === id) : null;
@@ -990,9 +1072,7 @@ function openRecipeModal(id) {
         <h3 style="font-size: 1.05rem;">${existing ? "Rezept-Details" : "Neues Rezept"}</h3>
         <button class="rec-icon-btn" data-close>${ICONS.x}</button>
       </div>
-      <div id="recipe-body">
-        ${existing ? renderRecipeDetail(existing) : renderRecipeForm()}
-      </div>
+      <div id="recipe-body">${existing ? renderRecipeDetail(existing, existing.servings || 2) : renderRecipeForm()}</div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -1000,36 +1080,54 @@ function openRecipeModal(id) {
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 
   if (existing) {
-    overlay.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
-      overlay.querySelector("#recipe-body").innerHTML = renderRecipeForm(existing);
-      bindRecipeForm(overlay);
-    }));
-    overlay.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
-      if (!(await confirmModal(`Rezept „${existing.title}“ löschen?`))) return;
-      state.recipes = state.recipes.filter((r) => r.id !== existing.id);
-      state.selectedRecipes.delete(existing.id);
-      await persistRecipes();
-      overlay.remove();
-      renderContent();
-      toast("Rezept gelöscht.", "success");
-    }));
+    const body = overlay.querySelector("#recipe-body");
+    const renderDetail = (servings) => {
+      body.innerHTML = renderRecipeDetail(existing, servings);
+      body.querySelector("#svc-minus")?.addEventListener("click", () => { if (servings > 1) renderDetail(servings - 1); });
+      body.querySelector("#svc-plus")?.addEventListener("click", () => { if (servings < 20) renderDetail(servings + 1); });
+      body.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
+        body.innerHTML = renderRecipeForm(existing);
+        bindRecipeForm(overlay);
+      }));
+      body.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", async () => {
+        if (!(await confirmModal(`Rezept „${existing.title}“ löschen?`))) return;
+        state.recipes = state.recipes.filter((r) => r.id !== existing.id);
+        state.selectedRecipes.delete(existing.id);
+        await persistRecipes();
+        overlay.remove();
+        renderContent();
+        toast("Rezept gelöscht.", "success");
+      }));
+    };
+    renderDetail(existing.servings || 2);
   } else {
     bindRecipeForm(overlay);
   }
 }
 
-function renderRecipeDetail(r) {
-  const cov = inventoryCoverage(r.ingredients || [], state.inventory);
+function renderRecipeDetail(r, servings) {
+  const factor = servings / (r.servings || 2);
+  const scaled = scaleIngredients(r.ingredients || [], factor);
+  const cov = inventoryCoverage(scaled, state.inventory);
   return `
-    <h2 style="font-size: 1.4rem; margin-bottom: 4px;">${escapeHtml(r.title)}</h2>
-    <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 16px;">${r.servings || 2} Portionen · ${(r.ingredients || []).length} Zutaten · ${r.is_public ? "öffentlich" : "privat"}</p>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;">
+      <div>
+        <h2 style="font-size: 1.4rem; margin-bottom: 4px;">${escapeHtml(r.title)}</h2>
+        <p style="color: var(--text-muted); font-size: 0.8rem;">${servings} Portionen · ${(r.ingredients || []).length} Zutaten · ${r.is_public ? "öffentlich" : "privat"}</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn btn-secondary btn-sm" id="svc-minus" title="Weniger Portionen">−</button>
+        <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary); min-width: 30px; text-align: center;">${servings}</span>
+        <button class="btn btn-secondary btn-sm" id="svc-plus" title="Mehr Portionen">+</button>
+      </div>
+    </div>
     ${(r.tags || []).length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom: 16px;">${r.tags.map((t) => `<span class="rec-chip">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
     <div style="margin-bottom: 16px;">
-      <div class="rec-group-head" style="margin-bottom: 8px;"><span>Zutaten (${cov.have}/${cov.total} im Bestand)</span>
+      <div class="rec-group-head" style="margin-bottom: 8px;"><span>Zutaten (${cov.have}/${cov.total} im Bestand${factor !== 1 ? ` · skaliert ×${factor}` : ""})</span>
         <span class="rec-coverage ${cov.complete ? "ok" : ""}" style="font-size: 0.7rem;">${cov.complete ? "✅ Alles vorhanden" : `${cov.missing.length} fehlen`}</span>
       </div>
       <div class="rec-rows">
-        ${(r.ingredients || []).map((i) => {
+        ${scaled.map((i) => {
           const have = state.inventory.some((inv) => inv.name.toLowerCase() === i.name.toLowerCase());
           return `<div class="rec-row ${have ? "done" : ""}">
             <span class="rec-check ${have ? "on" : ""}">${have ? ICONS.check : ""}</span>
@@ -1103,7 +1201,6 @@ function bindRecipeForm(overlay) {
     renderContent();
     toast(`Rezept „${title}“ gespeichert (${ingredients.length} Zutaten erkannt).`, "success");
   });
-
 }
 
 // ============================================================
@@ -1111,10 +1208,11 @@ function bindRecipeForm(overlay) {
 // ============================================================
 function openModelInfo() {
   const info = modelInfo();
+  const kb = kbStats();
   const overlay = document.createElement("div");
   overlay.className = "rec-overlay";
   overlay.innerHTML = `
-    <div class="rec-modal" style="max-width: 460px;">
+    <div class="rec-modal" style="max-width: 480px;">
       <div class="rec-modal-head">
         <h3 style="font-size: 1rem;">${ICONS.spark} ${escapeHtml(info.name)}</h3>
         <button class="rec-icon-btn" data-close>${ICONS.x}</button>
@@ -1130,7 +1228,7 @@ function openModelInfo() {
           <span style="color: var(--lime);">runtime</span>  ${escapeHtml(info.runtime)}
           <span style="color: var(--lime);">locale</span>  ${escapeHtml(info.locale)}
           <span style="color: var(--lime);">engines</span> ${info.engines.map((e) => escapeHtml(e)).join(" · ")}
-          <span style="color: var(--lime);">labels</span>  ${info.knowledge} Lebensmittel-Labels
+          <span style="color: var(--lime);">labels</span>  ${kb.labels} Lebensmittel-Labels (${kb.aliases} Aliase)
           <span style="color: var(--lime);">parses</span>  ${info.stats.parses} (ø ${info.stats.avgMs.toFixed(1)} ms)
           <span style="color: var(--lime);">privacy</span> 100% lokal – keine Daten verlassen das Gerät
         </div>
@@ -1151,7 +1249,6 @@ function openModelInfo() {
 // Init
 // ============================================================
 async function init() {
-  // Model-Chip
   const chip = $("model-chip");
   if (chip) {
     chip.innerHTML = `<span class="rec-pulse"></span> Synaptic FM · lokal · ${modelInfo().version}`;
@@ -1160,12 +1257,12 @@ async function init() {
   $("model-info-btn")?.addEventListener("click", openModelInfo);
 
   renderTabs();
-
-  await loadAll();
-
   renderContent();
+  await loadAll();
+  renderTabs();
+  renderContent();
+  renderStatus();
 
-  // Realtime: bei Auth-Änderungen neu laden
   supabase.auth.onAuthStateChange(() => {
     loadAll().then(() => {
       renderTabs();
@@ -1173,17 +1270,17 @@ async function init() {
     });
   });
 
-  // Online/Offline
   window.addEventListener("online", () => {
-    loadAll().then(() => { renderTabs(); renderContent(); });
-    toast("Verbindung wiederhergestellt.", "success");
+    loadAll().then(() => {
+      renderTabs();
+      renderContent();
+    });
+    renderStatus();
+    toast("Verbindung wiederhergestellt – Daten sicher gespeichert.", "success");
   });
   window.addEventListener("offline", () => {
-    if (state.mode === "cloud") {
-      state.mode = "local";
-      renderModeBanner();
-      toast("Offline – Änderungen werden lokal gespeichert.", "warning");
-    }
+    renderStatus();
+    toast("Offline – Änderungen werden lokal gespeichert.", "warning");
   });
 }
 

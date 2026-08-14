@@ -79,6 +79,8 @@ export const CATEGORIES = [
   "Süßes & Snacks",
   "Tiefkühl",
   "Haushalt",
+  "Pflege & Körper",
+  "Tierbedarf",
   "Sonstiges",
 ];
 
@@ -280,6 +282,264 @@ const KNOWLEDGE = [
   K("Eiswürfel", "Sonstiges", "Packung", []),
   K("Paniermehl", "Sonstiges", "g", []),
   K("Semmelknödel", "Sonstiges", "Packung", ["knödel"]),
+
+  // ----- Obst & Gemüse (erweitert) -----
+  K("Pfirsiche", "Obst & Gemüse", "Stück", ["pfirsich"]),
+  K("Nektarinen", "Obst & Gemüse", "Stück", ["nektarine"]),
+  K("Aprikosen", "Obst & Gemüse", "Stück", ["aprikose", "marillen"]),
+  K("Pflaumen", "Obst & Gemüse", "Stück", ["pflaume", "zwetschgen", "zwetschge"]),
+  K("Kirschen", "Obst & Gemüse", "g", ["kirsche", "süßkirschen"]),
+  K("Johannisbeeren", "Obst & Gemüse", "g", ["johannisbeere", "rote johannisbeeren"]),
+  K("Stachelbeeren", "Obst & Gemüse", "g", ["stachelbeere"]),
+  K("Mango", "Obst & Gemüse", "Stück", ["mangos"]),
+  K("Ananas", "Obst & Gemüse", "Stück", ["ananas"]),
+  K("Kiwi", "Obst & Gemüse", "Stück", ["kiwis"]),
+  K("Melone", "Obst & Gemüse", "Stück", ["wassermelone", "honigmelone", "cantaloupe"]),
+  K("Granatapfel", "Obst & Gemüse", "Stück", []),
+  K("Feigen", "Obst & Gemüse", "Stück", ["feige"]),
+  K("Datteln", "Obst & Gemüse", "g", ["dattel"]),
+  K("Rhabarber", "Obst & Gemüse", "Stange", ["rhabarberstangen"]),
+  K("Fenchel", "Obst & Gemüse", "Stück", ["fenchelknolle"]),
+  K("Pastinaken", "Obst & Gemüse", "g", ["pastinake"]),
+  K("Sellerieknolle", "Obst & Gemüse", "Stück", []),
+  K("Radieschen", "Obst & Gemüse", "Bund", []),
+  K("Rote Bete", "Obst & Gemüse", "g", ["rote beete", "randen"]),
+  K("Kohlrabi", "Obst & Gemüse", "Stück", []),
+  K("Weißkohl", "Obst & Gemüse", "Stück", ["weisskohl", "kraut"]),
+  K("Rotkohl", "Obst & Gemüse", "Stück", ["rotkraut"]),
+  K("Wirsing", "Obst & Gemüse", "Stück", ["wirsingkohl"]),
+  K("Grünkohl", "Obst & Gemüse", "g", ["gruenkohl"]),
+  K("Chicorée", "Obst & Gemüse", "Stück", ["chicoree"]),
+  K("Feldsalat", "Obst & Gemüse", "g", ["feldsalat"]),
+  K("Zuckerschoten", "Obst & Gemüse", "g", ["zuckererbsen"]),
+  K("Stangenbohnen", "Obst & Gemüse", "g", ["stangenbohne"]),
+  K("Spargel", "Obst & Gemüse", "g", ["grüner spargel", "weißer spargel", "weisser spargel"]),
+  K("Kresse", "Obst & Gemüse", "Packung", []),
+  K("Sprossen", "Obst & Gemüse", "g", ["keimlinge"]),
+  K("Austernpilze", "Obst & Gemüse", "g", ["austernpilz"]),
+  K("Shiitake", "Obst & Gemüse", "g", []),
+  K("Pfifferlinge", "Obst & Gemüse", "g", ["pfifferling"]),
+  K("Steinpilze", "Obst & Gemüse", "g", ["steinpilz"]),
+  K("Maiskolben", "Obst & Gemüse", "Stück", []),
+  K("Artischocken", "Obst & Gemüse", "Stück", ["artischocke"]),
+  K("Frühlingszwiebeln", "Obst & Gemüse", "Stück", ["frühlingszwiebel", "lauchzwiebeln"]),
+  K("Estragon (frisch)", "Obst & Gemüse", "Bund", []),
+  K("Salbei (frisch)", "Obst & Gemüse", "Bund", []),
+  K("Koriander (frisch)", "Obst & Gemüse", "Bund", ["frischer koriander"]),
+
+  // ----- Milchprodukte (erweitert) -----
+  K("Skyr", "Milchprodukte", "g", []),
+  K("Hüttenkäse", "Milchprodukte", "g", ["cottage cheese"]),
+  K("Ziegenkäse", "Milchprodukte", "g", ["ziegenfrischkäse"]),
+  K("Brie", "Milchprodukte", "g", []),
+  K("Camembert", "Milchprodukte", "g", []),
+  K("Schmelzkäse", "Milchprodukte", "g", []),
+  K("Blauschimmelkäse", "Milchprodukte", "g", ["roquefort", "gorgonzola"]),
+  K("Ricotta", "Milchprodukte", "g", []),
+  K("Milchreis", "Milchprodukte", "g", []),
+  K("Ziegenmilch", "Milchprodukte", "ml", []),
+  K("Käseaufschnitt", "Milchprodukte", "Packung", ["käseaufschnitt"]),
+
+  // ----- Fleisch & Fisch (erweitert) -----
+  K("Lamm", "Fleisch & Fisch", "g", ["lammfleisch", "lammlachse"]),
+  K("Ente", "Fleisch & Fisch", "g", ["entenbrust"]),
+  K("Gans", "Fleisch & Fisch", "g", []),
+  K("Gyros", "Fleisch & Fisch", "g", []),
+  K("Souvlaki", "Fleisch & Fisch", "g", []),
+  K("Cevapcici", "Fleisch & Fisch", "g", []),
+  K("Forelle", "Fleisch & Fisch", "g", ["forellenfilet"]),
+  K("Zander", "Fleisch & Fisch", "g", []),
+  K("Thunfischsteak", "Fleisch & Fisch", "g", []),
+  K("Sardinen", "Fleisch & Fisch", "Dose", ["sardinen dose"]),
+  K("Hering", "Fleisch & Fisch", "g", ["heringsfilet", "matjes"]),
+  K("Makrele", "Fleisch & Fisch", "g", []),
+  K("Krabben", "Fleisch & Fisch", "g", ["krevetten"]),
+  K("Muscheln", "Fleisch & Fisch", "g", []),
+  K("Tintenfisch", "Fleisch & Fisch", "g", ["calamari"]),
+  K("Surimi", "Fleisch & Fisch", "g", []),
+  K("Tofu", "Fleisch & Fisch", "g", ["naturtofu"]),
+  K("Seitan", "Fleisch & Fisch", "g", []),
+  K("Tempeh", "Fleisch & Fisch", "g", []),
+
+  // ----- Backwaren (erweitert) -----
+  K("Roggenmehl", "Backwaren", "g", []),
+  K("Vollkornmehl", "Backwaren", "g", []),
+  K("Reismehl", "Backwaren", "g", []),
+  K("Mandelmehl", "Backwaren", "g", []),
+  K("Speisestärke", "Backwaren", "g", ["stärke", "maisstärke"]),
+  K("Zitronensäure", "Backwaren", "g", []),
+  K("Backaroma", "Backwaren", "Flasche", ["vanillearoma"]),
+  K("Tortenguss", "Backwaren", "Packung", []),
+  K("Gelatine", "Backwaren", "Packung", ["gelatineblätter"]),
+  K("Agar-Agar", "Backwaren", "Packung", []),
+  K("Pizzateig", "Backwaren", "Packung", ["fertiger pizzateig"]),
+  K("Blätterteig", "Backwaren", "Packung", ["tk-blätterteig"]),
+  K("Hefeteig", "Backwaren", "Packung", []),
+  K("Bagels", "Backwaren", "Stück", ["bagel"]),
+  K("Croissants", "Backwaren", "Stück", ["croissant"]),
+  K("Brezeln", "Backwaren", "Stück", ["brezel", "laugenbrezel"]),
+  K("Knäckebrot", "Backwaren", "Packung", []),
+  K("Wraps", "Backwaren", "Packung", ["tortillas"]),
+  K("Pita", "Backwaren", "Packung", ["pitabrot"]),
+  K("Zwieback", "Backwaren", "Packung", []),
+
+  // ----- Nudeln & Getreide (erweitert) -----
+  K("Tortellini", "Nudeln & Getreide", "g", []),
+  K("Ravioli", "Nudeln & Getreide", "g", []),
+  K("Gnocchi", "Nudeln & Getreide", "g", []),
+  K("Lasagneplatten", "Nudeln & Getreide", "g", []),
+  K("Ramen", "Nudeln & Getreide", "g", []),
+  K("Udon", "Nudeln & Getreide", "g", []),
+  K("Glasnudeln", "Nudeln & Getreide", "g", []),
+  K("Polenta", "Nudeln & Getreide", "g", ["maisgrieß"]),
+  K("Graupen", "Nudeln & Getreide", "g", []),
+  K("Hirse", "Nudeln & Getreide", "g", []),
+  K("Amaranth", "Nudeln & Getreide", "g", []),
+  K("Buchweizen", "Nudeln & Getreide", "g", []),
+  K("Weiße Bohnen", "Nudeln & Getreide", "Dose", ["weisse bohnen"]),
+  K("Kidneybohnen", "Nudeln & Getreide", "Dose", []),
+  K("Schwarze Bohnen", "Nudeln & Getreide", "Dose", []),
+
+  // ----- Konserven & Saucen (erweitert) -----
+  K("Pesto", "Konserven & Saucen", "Glas", ["pesto genovese", "pesto rosso"]),
+  K("Currypaste", "Konserven & Saucen", "Glas", ["rote currypaste", "grüne currypaste"]),
+  K("Salsa", "Konserven & Saucen", "Glas", []),
+  K("Guacamole", "Konserven & Saucen", "Packung", []),
+  K("Olivenpaste", "Konserven & Saucen", "Glas", ["tapenade"]),
+  K("Sardellen", "Konserven & Saucen", "Dose", ["anchovis"]),
+  K("Gewürzgurken", "Konserven & Saucen", "Glas", ["saure gurken", "essiggurken"]),
+  K("Ananas (Dose)", "Konserven & Saucen", "Dose", ["dose ananas", "ananasdose"]),
+  K("Pfirsiche (Dose)", "Konserven & Saucen", "Dose", ["dose pfirsiche"]),
+  K("Worcestershire Sauce", "Konserven & Saucen", "Flasche", ["worcester sauce"]),
+  K("Tabasco", "Konserven & Saucen", "Flasche", []),
+  K("Sriracha", "Konserven & Saucen", "Flasche", []),
+  K("BBQ-Sauce", "Konserven & Saucen", "Flasche", ["barbecue sauce"]),
+  K("Teriyaki", "Konserven & Saucen", "Flasche", []),
+  K("Hoisin", "Konserven & Saucen", "Flasche", []),
+  K("Curryketchup", "Konserven & Saucen", "Flasche", []),
+  K("Remoulade", "Konserven & Saucen", "Glas", []),
+  K("Ajvar", "Konserven & Saucen", "Glas", []),
+  K("Hummus", "Konserven & Saucen", "Packung", []),
+
+  // ----- Gewürze (erweitert) -----
+  K("Koriander", "Gewürze", "g", ["koriander gemahlen"]),
+  K("Nelken", "Gewürze", "g", ["gewürznelken"]),
+  K("Kardamom", "Gewürze", "g", []),
+  K("Sternanis", "Gewürze", "g", []),
+  K("Fenchelsamen", "Gewürze", "g", []),
+  K("Senfsamen", "Gewürze", "g", []),
+  K("Estragon", "Gewürze", "g", ["estragon getrocknet"]),
+  K("Salbei", "Gewürze", "g", ["salbei getrocknet"]),
+  K("Bohnenkraut", "Gewürze", "g", []),
+  K("Cayennepfeffer", "Gewürze", "g", ["cayenne"]),
+  K("Garam Masala", "Gewürze", "g", []),
+  K("Ras el Hanout", "Gewürze", "g", []),
+  K("Fünf-Gewürze-Pulver", "Gewürze", "g", ["five spice"]),
+  K("Za'atar", "Gewürze", "g", []),
+  K("Sesam", "Gewürze", "g", ["sesamsamen"]),
+  K("Mohn", "Gewürze", "g", ["mohnsamen"]),
+  K("Leinsamen", "Gewürze", "g", []),
+  K("Chiasamen", "Gewürze", "g", []),
+  K("Hanfsamen", "Gewürze", "g", []),
+  K("Kürbiskerne", "Gewürze", "g", []),
+  K("Sonnenblumenkerne", "Gewürze", "g", []),
+  K("Zitronengras", "Gewürze", "Stange", []),
+  K("Vanilleschoten", "Gewürze", "Stück", ["vanilleschote"]),
+
+  // ----- Öle & Fette (erweitert) -----
+  K("Traubenkernöl", "Öle & Fette", "ml", []),
+  K("Walnussöl", "Öle & Fette", "ml", []),
+  K("Erdnussöl", "Öle & Fette", "ml", []),
+  K("Avocadoöl", "Öle & Fette", "ml", []),
+  K("Chiliöl", "Öle & Fette", "ml", []),
+  K("Trüffelöl", "Öle & Fette", "ml", []),
+  K("Kürbiskernöl", "Öle & Fette", "ml", []),
+  K("Ghee", "Öle & Fette", "g", []),
+
+  // ----- Getränke (erweitert) -----
+  K("Eistee", "Getränke", "l", []),
+  K("Energy-Drink", "Getränke", "Dose", ["energydrink", "energy drink"]),
+  K("Ginger Ale", "Getränke", "l", []),
+  K("Tonic Water", "Getränke", "l", []),
+  K("Apfelschorle", "Getränke", "l", ["apfelsaftschorle"]),
+  K("Hafermilch", "Getränke", "l", ["haferdrink"]),
+  K("Mandelmilch", "Getränke", "l", []),
+  K("Sojamilch", "Getränke", "l", []),
+  K("Kokoswasser", "Getränke", "l", []),
+  K("Mate", "Getränke", "l", ["mate tee"]),
+  K("Espresso", "Getränke", "g", []),
+  K("Traubensaft", "Getränke", "l", []),
+
+  // ----- Süßes & Snacks (erweitert) -----
+  K("Schokoriegel", "Süßes & Snacks", "Stück", []),
+  K("Lakritz", "Süßes & Snacks", "g", []),
+  K("Marshmallows", "Süßes & Snacks", "Packung", []),
+  K("Marzipan", "Süßes & Snacks", "g", []),
+  K("Waffeln", "Süßes & Snacks", "Packung", ["eiswaffeln"]),
+  K("Kuchenmischung", "Süßes & Snacks", "Packung", ["backmischung"]),
+  K("Waffelröllchen", "Süßes & Snacks", "g", []),
+  K("Studentenfutter", "Süßes & Snacks", "g", []),
+  K("Trockenfrüchte", "Süßes & Snacks", "g", ["getrocknete früchte"]),
+  K("Ahornsirup", "Süßes & Snacks", "ml", []),
+  K("Agavendicksaft", "Süßes & Snacks", "ml", []),
+  K("Schokostreusel", "Süßes & Snacks", "g", []),
+  K("Kokosraspeln", "Süßes & Snacks", "g", ["kokosflocken"]),
+  K("Kuvertüre", "Süßes & Snacks", "g", []),
+  K("Zuckerguss", "Süßes & Snacks", "Packung", ["guss"]),
+  K("Kaugummi", "Süßes & Snacks", "Packung", []),
+  K("Bonbons", "Süßes & Snacks", "g", []),
+
+  // ----- Tiefkühl (erweitert) -----
+  K("TK-Kräuter", "Tiefkühl", "g", ["tiefkühlkräuter"]),
+  K("TK-Brot", "Tiefkühl", "Packung", []),
+  K("TK-Strudel", "Tiefkühl", "Stück", []),
+  K("Chicken Nuggets", "Tiefkühl", "g", ["nuggets"]),
+  K("Kroketten", "Tiefkühl", "g", []),
+  K("Rösti", "Tiefkühl", "g", ["rosti"]),
+  K("TK-Obst", "Tiefkühl", "g", ["tiefkühlobst"]),
+  K("TK-Himbeeren", "Tiefkühl", "g", ["tiefkühlhimbeeren"]),
+  K("TK-Kirschen", "Tiefkühl", "g", ["tiefkühlkirschen"]),
+
+  // ----- Haushalt (erweitert) -----
+  K("Geschirrspültabs", "Haushalt", "Packung", ["spültabs"]),
+  K("Weichspüler", "Haushalt", "Flasche", []),
+  K("Allzweckreiniger", "Haushalt", "Flasche", []),
+  K("Glasreiniger", "Haushalt", "Flasche", []),
+  K("Badreiniger", "Haushalt", "Flasche", []),
+  K("Backpapier", "Haushalt", "Rolle", []),
+  K("Gefrierbeutel", "Haushalt", "Packung", []),
+  K("Streichhölzer", "Haushalt", "Packung", []),
+  K("Feuerzeug", "Haushalt", "Stück", []),
+  K("Schwämme", "Haushalt", "Packung", ["spülschwamm"]),
+  K("Spüllappen", "Haushalt", "Packung", ["lappen"]),
+  K("Taschentücher", "Haushalt", "Packung", []),
+  K("Glühbirnen", "Haushalt", "Stück", []),
+  K("Teelichter", "Haushalt", "Packung", []),
+
+  // ----- Pflege & Körper -----
+  K("Deo", "Pflege & Körper", "Stück", ["deodorant"]),
+  K("Rasierer", "Pflege & Körper", "Packung", ["rasierklingen"]),
+  K("Rasierschaum", "Pflege & Körper", "Dose", []),
+  K("Sonnencreme", "Pflege & Körper", "Stück", ["sonnenschutz"]),
+  K("Handcreme", "Pflege & Körper", "Stück", []),
+  K("Wattepads", "Pflege & Körper", "Packung", []),
+  K("Wattestäbchen", "Pflege & Körper", "Packung", []),
+  K("Zahnbürste", "Pflege & Körper", "Stück", []),
+  K("Conditioner", "Pflege & Körper", "Flasche", ["spülung"]),
+  K("Gesichtscreme", "Pflege & Körper", "Stück", []),
+  K("Pflaster", "Pflege & Körper", "Packung", ["verbandsmaterial"]),
+  K("Schmerzmittel", "Pflege & Körper", "Packung", ["ibuprofen", "paracetamol"]),
+  K("Desinfektionsmittel", "Pflege & Körper", "Flasche", []),
+
+  // ----- Tierbedarf -----
+  K("Katzenfutter", "Tierbedarf", "Packung", ["katzenfutter dose"]),
+  K("Hundefutter", "Tierbedarf", "Packung", []),
+  K("Katzenstreu", "Tierbedarf", "Packung", []),
+  K("Leckerli", "Tierbedarf", "Packung", []),
+
+  // ----- Sonstiges (erweitert) -----
+  K("Hefeflocken", "Sonstiges", "g", []),
+  K("Proteinpulver", "Sonstiges", "Packung", []),
 ];
 
 // Lookup-Tabellen (nur einmal aufbauen)
@@ -315,6 +575,7 @@ const UNITS = [
   "glas", "gläser", "zehe", "zehen", "würfel", "beutel", "becher", "rolle", "rollen",
   "zweig", "zweige", "blatt", "blätter", "kopf", "köpfe", "spritzer", "schuss",
   "stange", "stangen", "döschen", "portion", "portionen",
+  "schale", "tüte", "tute", "päckchen", "paeckchen", "fläschchen", "flaeschchen", "tube",
 ];
 const UNIT_NORM = {
   kg: "kg", gramm: "g", g: "g", liter: "l", l: "l", milliliter: "ml", ml: "ml", kilogramm: "kg",
@@ -325,8 +586,10 @@ const UNIT_NORM = {
   zehe: "Zehe", zehen: "Zehe", würfel: "Würfel", beutel: "Beutel", becher: "Becher",
   rolle: "Rolle", rollen: "Rolle", zweig: "Zweig", zweige: "Zweig",
   blatt: "Blatt", blätter: "Blatt", kopf: "Kopf", köpfe: "Kopf",
-  spritzer: "Spritzer", schuss: "Schuss", stange: "Stange", stangen: "Stange",
+  spritzer: "Spritzer", schuss: "Schuss",  stange: "Stange", stangen: "Stange",
   döschen: "Döschen", portion: "Portion", portionen: "Portion",
+  schale: "Schale", tüte: "Tüte", tute: "Tüte", päckchen: "Päckchen", paeckchen: "Päckchen",
+  fläschchen: "Fläschchen", flaeschchen: "Fläschchen", tube: "Tube",
 };
 const UNIT_RE = new RegExp("^(" + UNITS.join("|") + ")\\b", "i");
 
@@ -623,6 +886,21 @@ export function formatAmount(item) {
   if (a == null) return u;
   const num = Number.isInteger(a) ? String(a) : String(a).replace(".", ",");
   return u ? `${num} ${u}` : num;
+}
+
+// Zutaten für andere Portionenzahl skalieren
+function scaleValue(amount, factor) {
+  if (amount == null) return null;
+  const v = amount * factor;
+  return Math.round(v * 100) / 100;
+}
+
+export function scaleIngredients(ingredients, factor) {
+  return (ingredients || []).map((i) => ({ ...i, amount: scaleValue(i.amount, factor) }));
+}
+
+export function kbStats() {
+  return { labels: KNOWLEDGE.length, categories: CATEGORIES.length, aliases: KB_ALIAS.size };
 }
 
 export function modelInfo() {
