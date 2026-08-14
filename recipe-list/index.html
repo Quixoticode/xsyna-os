@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <title>Rezeptliste — xSyna</title>
+    <meta name="description" content="xSyna Rezeptliste — Bestand verwalten, Rezepte finden und Einkaufslisten smart erstellen. Powered by Synaptic Foundation Model (lokal)." />
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" type="image/svg+xml" href="/recipe-list-icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/GeistMono-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      @font-face { font-family: "Geist"; src: url("https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+      @font-face { font-family: "Geist"; src: url("https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+      @font-face { font-family: "Geist"; src: url("https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+      @font-face { font-family: "Geist"; src: url("https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+      @font-face { font-family: "Geist Mono"; src: url("https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/GeistMono-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+      @font-face { font-family: "Geist Mono"; src: url("https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/GeistMono-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+      @font-face { font-family: "Geist Mono"; src: url("https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/GeistMono-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+    </style>
+    <link rel="stylesheet" href="/src/index.css?v=8" />
+    <script type="importmap">
+    {
+      "imports": {
+        "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+      }
+    }
+    </script>
+    <style>
+      /* ---------- Rezeptliste App-Styles (Vercel-Theme) ---------- */
+      .rec-tabs {
+        display: flex;
+        gap: 6px;
+        margin: 28px 0 24px;
+        padding: 4px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        width: fit-content;
+        max-width: 100%;
+        overflow-x: auto;
+      }
+      .rec-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: all var(--transition);
+      }
+      .rec-tab:hover { color: var(--text); }
+      .rec-tab.active {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border-strong);
+      }
+      .rec-badge {
+        background: var(--lime);
+        color: #000;
+        font-size: 0.65rem;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 1px 7px;
+      }
+      .rec-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .rec-input {
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 0.85rem;
+        padding: 9px 12px;
+        outline: none;
+        transition: border-color var(--transition), box-shadow var(--transition);
+      }
+      .rec-input:focus {
+        border-color: var(--lime);
+        box-shadow: 0 0 0 3px var(--lime-glow);
+      }
+      .rec-input::placeholder { color: var(--text-muted); }
+      select.rec-input { appearance: none; padding-right: 28px; }
+      .rec-kpis {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .rec-kpi {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        padding: 5px 10px;
+        border-radius: var(--radius);
+        white-space: nowrap;
+      }
+      .rec-group { margin-bottom: 20px; }
+      .rec-group-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+      }
+      .rec-group-count {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-family: var(--font-mono);
+      }
+      .rec-rows {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+      }
+      .rec-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        transition: background var(--transition);
+      }
+      .rec-row:last-child { border-bottom: none; }
+      .rec-row:hover { background: var(--bg-card-hover); }
+      .rec-row.done { opacity: 0.55; }
+      .rec-src { color: var(--lime); display: inline-flex; opacity: 0.85; }
+      .rec-name { flex: 1; min-width: 0; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .rec-amount {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+      .rec-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-secondary);
+        transition: all var(--transition);
+      }
+      .rec-icon-btn:hover { color: var(--text); border-color: var(--border-strong); background: var(--surface); }
+      .rec-icon-btn.danger:hover { color: var(--error); border-color: rgba(239, 68, 68, 0.4); background: var(--error-soft); }
+      .rec-check {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: var(--radius);
+        border: 1px solid var(--border-strong);
+        background: transparent;
+        color: #000;
+        flex-shrink: 0;
+        transition: all var(--transition);
+      }
+      .rec-check.on { background: var(--lime); border-color: var(--lime); }
+      .rec-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .rec-recipe { padding: 18px; display: flex; flex-direction: column; gap: 6px; }
+      .rec-recipe.ok { border-color: rgba(163, 230, 53, 0.35); }
+      .rec-recipe-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .rec-coverage {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 3px 9px;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .rec-coverage.ok { color: #000; background: var(--lime); border-color: var(--lime); font-weight: 600; }
+      .rec-chip {
+        font-size: 0.68rem;
+        color: var(--text-secondary);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 3px 9px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .rec-chip.ok { color: var(--lime); border-color: rgba(163, 230, 53, 0.4); }
+      .rec-chip.muted { opacity: 0.6; }
+      .rec-chip-x {
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        line-height: 1;
+        padding: 0 0 0 2px;
+        cursor: pointer;
+      }
+      .rec-chip-x:hover { color: var(--error); }
+      .rec-recipe-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: auto;
+        padding-top: 10px;
+      }
+      .rec-link {
+        background: none;
+        border: none;
+        color: var(--lime);
+        font-size: 0.75rem;
+        cursor: pointer;
+        padding: 0;
+      }
+      .rec-link:hover { text-decoration: underline; }
+      .rec-empty {
+        text-align: center;
+        padding: 56px 24px;
+      }
+      .rec-empty svg { margin: 0 auto 16px; color: var(--lime); opacity: 0.7; }
+      .rec-empty h3 { margin-bottom: 8px; font-size: 1.15rem; }
+
+      /* Overlay / Modals */
+      .rec-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(6px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        animation: recFade 0.18s ease;
+      }
+      @keyframes recFade { from { opacity: 0; } to { opacity: 1; } }
+      .rec-modal {
+        background: var(--bg-card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius-lg);
+        width: 100%;
+        max-width: 560px;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      }
+      .rec-modal-lg { max-width: 640px; }
+      .rec-modal-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .rec-modal-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .rec-source-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .rec-source {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 16px 8px;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font-size: 0.82rem;
+        font-weight: 500;
+        transition: all var(--transition);
+      }
+      .rec-source svg { color: var(--text-secondary); }
+      .rec-source small { color: var(--text-muted); font-size: 0.68rem; font-weight: 400; }
+      .rec-source:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+      .rec-source.active { border-color: var(--lime); background: var(--lime-soft); }
+      .rec-source.active svg { color: var(--lime); }
+      @media (max-width: 560px) { .rec-source-grid { grid-template-columns: 1fr; } }
+      .rec-cam-actions { display: flex; gap: 10px; margin-top: 12px; }
+      .rec-progress {
+        height: 6px;
+        background: var(--surface);
+        border-radius: 999px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+      .rec-progress div {
+        height: 100%;
+        background: var(--lime);
+        transition: width 0.2s ease;
+      }
+      .rec-pulse {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--lime);
+        display: inline-block;
+        animation: recPulse 1.6s ease-in-out infinite;
+      }
+      @keyframes recPulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(163, 230, 53, 0.5); }
+        50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(163, 230, 53, 0); }
+      }
+      .rec-inline-input {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 0.82rem;
+        padding: 3px 6px;
+        outline: none;
+        transition: border-color var(--transition);
+      }
+      .rec-inline-input:focus { border-color: var(--lime); background: var(--surface); }
+      .rec-conf { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-muted); white-space: nowrap; }
+      .rec-label { display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+      .rec-recording { background: var(--error) !important; border-color: var(--error) !important; color: #fff !important; animation: recPulse 1s infinite; }
+      #offline-banner {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--warning);
+        color: #000;
+        font-weight: 500;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+      }
+      .model-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--lime);
+        background: var(--lime-soft);
+        border: 1px solid rgba(163, 230, 53, 0.35);
+        border-radius: 999px;
+        padding: 5px 12px;
+        cursor: pointer;
+        transition: all var(--transition);
+      }
+      .model-chip:hover { box-shadow: var(--shadow-glow); border-color: var(--lime); }
+    </style>
+  </head>
+  <body>
+    <div id="neural-canvas"></div>
+    <div id="offline-banner"></div>
+
+    <header class="navbar">
+      <nav class="container navbar-inner">
+        <a href="/" class="flex items-center gap-2" aria-label="xSyna Home">
+          <svg width="28" height="28" viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#A3E635" />
+                <stop offset="100%" stop-color="#A3E635" />
+              </linearGradient>
+            </defs>
+            <path d="M 20 20 C 50 20, 50 80, 80 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
+            <path d="M 80 20 C 50 20, 50 80, 20 80" stroke="url(#logoGrad)" stroke-width="8" stroke-linecap="round" fill="none" />
+            <circle cx="50" cy="50" r="10" fill="#0A0A0A" stroke="url(#logoGrad)" stroke-width="4" />
+            <circle cx="50" cy="50" r="4" fill="#FFFFFF" />
+          </svg>
+          <span style="font-weight: 700; font-size: 1.1rem;">xSyna</span>
+        </a>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <a href="/news" class="btn btn-secondary btn-sm">News</a>
+          <a href="/internal-services" class="btn btn-secondary btn-sm">Dashboard</a>
+          <a id="auth-btn" href="/auth" class="btn btn-primary btn-sm">Anmelden</a>
+        </div>
+      </nav>
+    </header>
+
+    <main style="padding-top: 110px; padding-bottom: 96px;">
+      <section class="container" style="margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 12px;">
+          <div>
+            <span class="tag tag-cyan">WebApp</span>
+            <h1 class="text-liquid" style="font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 8px; padding-bottom: 0.1em;">
+              Rezeptliste
+            </h1>
+            <p style="color: var(--text-secondary); max-width: 620px; line-height: 1.6;">
+              Bestand eintragen – per Kamera, Sprache oder Tippen. Rezepte suchen, die zu deinem Vorrat passen, und Einkaufslisten bauen, die nur das enthalten, was wirklich fehlt.
+            </p>
+          </div>
+          <button id="model-chip" class="model-chip" title="Synaptic Foundation Model – Details"></button>
+        </div>
+        <button id="model-info-btn" class="rec-link" style="font-size: 0.75rem;">Modell-Info anzeigen</button>
+      </section>
+
+      <section class="container">
+        <div id="tab-bar"></div>
+        <div id="app-content"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <p style="font-size: 0.85rem; color: var(--text-muted);">&copy; 2026 Jake Ruck — xSyna. Alle Rechte vorbehalten.</p>
+        <p style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">Powered by <span style="color: var(--lime);">Synaptic Foundation Model</span> · 100 % lokal</p>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/recipe-list.js?v=1"></script>
+  </body>
+</html>

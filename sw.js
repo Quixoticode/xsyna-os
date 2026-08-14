@@ -1,4 +1,4 @@
-const CACHE_NAME = "xsyna-v14";
+const CACHE_NAME = "xsyna-v15";
 const OFFLINE_URLS = [
   "/",
   "/index.html",
@@ -14,6 +14,8 @@ const OFFLINE_URLS = [
   "/games/index.html",
   "/news/",
   "/news/index.html",
+  "/recipe-list/",
+  "/recipe-list/index.html",
   "/src/index.css",
   "/src/main.js",
   "/src/docs.js",
@@ -21,12 +23,15 @@ const OFFLINE_URLS = [
   "/src/internal.js",
   "/src/track.js",
   "/src/games.js",
+  "/src/recipe-list.js",
+  "/src/js/synaptic.js",
   "/src/js/ui.js",
   "/src/js/supabase.js",
   "/src/js/supabase-db.js",
   "/src/js/neural-bg.js",
   "/src/js/sw-register.js",
   "/src/js/api-assets.js",
+  "/recipe-list-icon.svg",
   "/xyna-logo.svg",
   "/xsyn-icon.svg",
   "/synai-icon.svg",
@@ -120,6 +125,9 @@ self.addEventListener("fetch", (event) => {
           }
           if (url.pathname.startsWith("/track")) {
             return caches.match("/track/index.html");
+          }
+          if (url.pathname.startsWith("/recipe-list")) {
+            return caches.match("/recipe-list/index.html");
           }
           return caches.match("/index.html");
         });

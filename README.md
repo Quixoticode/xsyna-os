@@ -20,6 +20,8 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
 ├── docs/index.html            # Documentation
 ├── internal-services/index.html # Dashboard / admin panel
 ├── track/index.html           # Public order/commission tracking
+├── recipe-list/index.html     # Rezeptliste web app (Bestand/Rezepte/Einkauf)
+├── recipe-list-icon.svg       # Rezeptliste app icon
 ├── src/
 │   ├── index.css              # Global design system
 │   ├── main.js                # Landing page entry
@@ -27,11 +29,13 @@ A pure static HTML/CSS/JS website for xSyna — no build step, no framework.
 │   ├── docs.js                # Docs page entry
 │   ├── internal.js            # Dashboard / admin panel entry
 │   ├── track.js               # Tracking page entry
+│   ├── recipe-list.js         # Rezeptliste web app entry
 │   └── js/
 │       ├── supabase.js        # Supabase client
 │       ├── supabase-db.js     # DB helpers & offline queue
 │       ├── neural-bg.js       # Three.js background
-│       └── sw-register.js     # Service worker registration
+│       ├── sw-register.js     # Service worker registration
+│       └── synaptic.js        # Synaptic Foundation Model (lokal: Parsing, OCR, Scoring)
 ├── sw.js                      # Service worker
 ├── supabase/migrations/       # SQL schema migrations
 ├── scripts/setup-admin.mjs    # Promote a user to admin

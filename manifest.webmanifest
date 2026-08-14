@@ -38,6 +38,13 @@
       "description": "xSyna Account Login",
       "url": "/auth",
       "icons": [{ "src": "/xyna-logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Rezeptliste",
+      "short_name": "Rezepte",
+      "description": "Bestand, Rezepte & Einkaufslisten",
+      "url": "/recipe-list",
+      "icons": [{ "src": "/recipe-list-icon.svg", "sizes": "any" }]
     }
   ],
   "related_applications": [],
