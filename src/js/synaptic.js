@@ -204,7 +204,8 @@ const KNOWLEDGE = [
   K("Kokosmilch", "Konserven & Saucen", "ml", []),
   K("Honig", "Konserven & Saucen", "g", []),
   K("Marmelade", "Konserven & Saucen", "g", ["konfitüre", "erdbeermarmelade"]),
-  K("Schokocreme", "Konserven & Saucen", "g", ["nussnougatcreme", "nutella", "schokocremes"]),
+  K("Schokocreme", "Konserven & Saucen", "g", ["nussnougatcreme", "schokocremes"]),
+  K("Nutella", "Süßes & Snacks", "g", ["nuss nougat creme", "nougatcreme"]),
   K("Erdnussbutter", "Konserven & Saucen", "g", ["erdnussmus"]),
 
   // ----- Gewürze -----
@@ -234,7 +235,7 @@ const KNOWLEDGE = [
   K("Butterschmalz", "Öle & Fette", "g", ["schmalz"]),
 
   // ----- Getränke -----
-  K("Wasser", "Getränke", "l", ["mineralwasser", "stilles wasser", "sprudel"]),
+  K("Wasser", "Getränke", "l", ["mineralwasser", "stilles wasser", "sprudel", "tischwasser", "sparkling water"]),
   K("Kaffee", "Getränke", "g", ["kaffeebohnen", "gemahlener kaffee", "kaffeepulver"]),
   K("Tee", "Getränke", "Stück", ["schwarztee", "grüner tee", "kamillentee", "teebeutel"]),
   K("Saft", "Getränke", "l", ["orangensaft", "apfelsaft", "multivitaminsaft"]),
@@ -673,6 +674,11 @@ const UNIT_NORM = {
   fläschchen: "Fläschchen", flaeschchen: "Fläschchen", tube: "Tube",
 };
 const UNIT_RE = new RegExp("^(" + UNITS.join("|") + ")\\b", "i");
+// Menge am ENDE der Zeile (Etikett-Stil): "Wasser 1,5 l", "Nutella 450g", "Milch 1 L"
+const TRAILING_QTY_RE = new RegExp(
+  "^(.*?)\\s*(\\d+\\s*\\/\\s*\\d+|\\d+(?:[.,]\\d+)?(?:\\s*[-–]\\s*\\d+(?:[.,]\\d+)?)?|½|¼|¾|⅓|⅔)\\s*(" + UNITS.join("|") + ")\\s*$",
+  "i"
+);
 
 function toNumber(raw) {
   if (raw == null) return null;
@@ -715,6 +721,18 @@ function parseAmount(raw) {
   if (unitMatch) {
     unit = UNIT_NORM[unitMatch[1].toLowerCase()] || null;
     rest = rest.slice(unitMatch[0].length).trim();
+  }
+
+  // 4) Keine führende Menge? Dann am Ende suchen (Etikett-Stil,
+  //    z. B. "Wasser 1,5 l" oder "Nutella 450 g"). Name wird dabei
+  //    von Menge/Einheit getrennt, damit die Label-Erkennung sauber läuft.
+  if (amount == null) {
+    const trail = rest.match(TRAILING_QTY_RE);
+    if (trail && trail[1].trim().length >= 2) {
+      amount = toNumber(trail[2]);
+      unit = UNIT_NORM[(trail[3] || "").toLowerCase()] || null;
+      rest = trail[1].trim();
+    }
   }
 
   return { amount, unit, name: rest };

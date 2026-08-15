@@ -930,7 +930,7 @@ function ensureRecipeExtras() {
     const btn = document.createElement("button");
     btn.className = "btn btn-secondary btn-sm";
     btn.id = "btn-web-recipes";
-    btn.title = "Rezepte von Websites mit öffentlicher API suchen (TheMealDB, TheCocktailDB, xSyna)";
+    btn.title = "Rezepte von Websites mit öffentlicher API suchen (TheMealDB, TheCocktailDB, DummyJSON, xSyna)";
     btn.innerHTML = `🔎 Web-Rezepte`;
     btn.addEventListener("click", openWebRecipesModal);
     const target = $("btn-import-recipe") || $("btn-new-recipe");
@@ -1775,6 +1775,7 @@ function renderShopping() {
         ${navigator.share ? `<button class="btn btn-secondary btn-sm" id="btn-share-list">${ICONS.share} Teilen</button>` : ""}
         <button class="btn btn-secondary btn-sm" id="btn-print">${ICONS.print} Drucken</button>
         <button class="btn btn-secondary btn-sm" id="btn-save-list">Speichern</button>
+        <button class="btn btn-secondary btn-sm" id="btn-clear-list" ${total ? "" : "disabled"} title="Alle Positionen der aktuellen Einkaufsliste löschen" style="color: var(--error); border-color: rgba(239,68,68,0.4);">${ICONS.trash} Liste leeren</button>
       </div>
     </div>
 
@@ -2025,6 +2026,15 @@ function bindShopping() {
   $("btn-copy-list")?.addEventListener("click", copyListText);
   $("btn-share-list")?.addEventListener("click", shareList);
   $("btn-print")?.addEventListener("click", printList);
+
+  $("btn-clear-list")?.addEventListener("click", async () => {
+    if (!currentListItems.length) { toast("Liste ist leer.", "warning"); return; }
+    if (!(await confirmModal("Gesamte Einkaufsliste löschen? Alle Positionen werden entfernt."))) return;
+    currentListItems = [];
+    persistCurrentList();
+    renderContent();
+    toast("Einkaufsliste geleert.", "success");
+  });
 
   $("btn-save-list")?.addEventListener("click", async () => {
     if (!currentListItems.length) { toast("Liste ist leer.", "warning"); return; }

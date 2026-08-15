@@ -488,6 +488,7 @@ export function generateRecipeSuggestions(inventory, { limit = 4 } = {}) {
 // ============================================================
 const THEMEALDB = "https://www.themealdb.com/api/json/v1/1/";
 const THECOCKTAILDB = "https://www.thecocktaildb.com/api/json/v1/1/";
+const DUMMYJSON = "https://dummyjson.com/";
 
 // Gemeinsamer Zutaten-Extraktor für die „…DB“-Familie (strIngredient1..N)
 function dbIngredients(m, max) {
@@ -529,6 +530,31 @@ function cocktaildbDrink(m) {
     image: String(m.strDrinkThumb || "").trim(),
     sourceUrl: "",
     provider: "TheCocktailDB",
+  };
+}
+
+function dummyjsonRecipe(m) {
+  const ingredients = mergeItems(
+    [].concat(m.ingredients || [])
+      .map((raw) => {
+        const line = String(raw || "").trim();
+        if (!line || line.length < 2) return null;
+        const p = parseLine(line);
+        if (!p.name || p.name.length < 2) return null;
+        return { name: p.name, amount: p.amount, unit: p.unit, category: p.category };
+      })
+      .filter(Boolean)
+  ).map((i) => ({ name: i.name, amount: i.amount, unit: i.unit, category: i.category }));
+  return {
+    id: "dummyjson-" + m.id,
+    title: String(m.name || "").trim().slice(0, 120) || "Unbenanntes Rezept",
+    servings: Math.max(1, Math.min(24, Number(m.servings) || 2)),
+    ingredients,
+    instructions: [].concat(m.instructions || []).map((s) => String(s || "").trim()).filter(Boolean).join("\n").slice(0, 5000),
+    tags: [].concat(m.cuisine || [], m.tags || [], m.mealType || []).map((t) => String(t).trim()).filter(Boolean).slice(0, 6),
+    image: String(m.image || "").trim(),
+    sourceUrl: "",
+    provider: "DummyJSON",
   };
 }
 
@@ -657,6 +683,27 @@ export const WEB_PROVIDERS = [
     toRecipe: cocktaildbDrink,
   },
   {
+    id: "dummyjson",
+    name: "DummyJSON",
+    tagline: "50 internationale Rezepte – kostenlos, kein Schlüssel",
+    fullOnList: true,
+    searchUrl: (q) => DUMMYJSON + "recipes/search?q=" + encodeURIComponent(q),
+    ingredientUrl: (q) => DUMMYJSON + "recipes/search?q=" + encodeURIComponent(q),
+    categoryUrl: (c) => DUMMYJSON + "recipes/search?q=" + encodeURIComponent(c),
+    randomUrl: () => DUMMYJSON + "recipes?limit=1&skip=" + Math.floor(Math.random() * 50),
+    lookupUrl: (id) => DUMMYJSON + "recipes/" + encodeURIComponent(id),
+    categoriesUrl: () => DUMMYJSON + "recipes/tags",
+    parseMeals: (json) => (json && Array.isArray(json.recipes)) ? json.recipes : [],
+    parseMeal: (json) => {
+      if (!json) return null;
+      if (Array.isArray(json.recipes)) return json.recipes[0] || null;
+      return json.id != null ? json : null;
+    },
+    parseCategories: (json) => (Array.isArray(json) ? json : []).map((t) => String(t).trim()).filter(Boolean),
+    idOf: (m) => m.id,
+    toRecipe: dummyjsonRecipe,
+  },
+  {
     id: "xsyna",
     name: "xSyna Rezepte",
     tagline: "Kuratierte Klassiker – funktioniert komplett offline",
@@ -724,10 +771,14 @@ export async function searchWebRecipes({ query = "", ingredient = "", category =
     meals = provider.parseMeals(json);
   } else if (ingredient) {
     const json = await fetchJson(provider.ingredientUrl(ingredient));
-    meals = await withLookups(provider, provider.parseMeals(json), Math.min(limit, 8));
+    meals = provider.fullOnList
+      ? provider.parseMeals(json)
+      : await withLookups(provider, provider.parseMeals(json), Math.min(limit, 8));
   } else if (category) {
     const json = await fetchJson(provider.categoryUrl(category));
-    meals = await withLookups(provider, provider.parseMeals(json), Math.min(limit, 8));
+    meals = provider.fullOnList
+      ? provider.parseMeals(json)
+      : await withLookups(provider, provider.parseMeals(json), Math.min(limit, 8));
   } else {
     // Startansicht: mehrere zufällige Rezepte (latest.php ist nicht mehr offen)
     const seen = new Set();
