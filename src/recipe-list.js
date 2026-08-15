@@ -36,6 +36,7 @@ import {
   generateRecipeSuggestions,
   searchWebRecipes,
   fetchWebCategories,
+  WEB_PROVIDERS,
 } from "./js/web-recipes.js";
 
 const $ = (id) => document.getElementById(id);
@@ -98,6 +99,29 @@ const ICONS = {
   copy: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
   share: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
 };
+
+// Produkt-Icons je Kategorie (im Bestand, im Einkaufsmodus und in Rezeptdetails)
+const CATEGORY_ICON = {
+  "Obst & Gemüse": "🥦",
+  "Milchprodukte": "🥛",
+  "Fleisch & Fisch": "🍗",
+  "Backwaren": "🍞",
+  "Nudeln & Getreide": "🍝",
+  "Konserven & Saucen": "🥫",
+  "Gewürze": "🧂",
+  "Öle & Fette": "🫒",
+  "Getränke": "🥤",
+  "Süßes & Snacks": "🍫",
+  "Tiefkühl": "❄️",
+  "Haushalt": "🧻",
+  "Pflege & Körper": "🧴",
+  "Tierbedarf": "🐾",
+  "Sonstiges": "📦",
+};
+
+function productIcon(item) {
+  return CATEGORY_ICON[item && item.category] || "📦";
+}
 
 // ============================================================
 // Supabase ist OPTIONAL (Cloud-Backup). Die App startet und
@@ -458,6 +482,7 @@ function openShoppingMode() {
         ${items.map((i) => `
           <div class="shop-item ${i.done ? "done" : ""}" data-key="${escapeHtml(itemKey(i))}">
             <span class="shop-check ${i.done ? "on" : ""}">${i.done ? ICONS.check : ""}</span>
+            <span class="shop-emoji">${productIcon(i)}</span>
             <span class="shop-name">${escapeHtml(i.name)}</span>
             <span class="shop-amount">${formatAmount(i)}</span>
           </div>`).join("")}
@@ -905,7 +930,7 @@ function ensureRecipeExtras() {
     const btn = document.createElement("button");
     btn.className = "btn btn-secondary btn-sm";
     btn.id = "btn-web-recipes";
-    btn.title = "Rezepte von Websites mit öffentlicher API suchen (TheMealDB – kostenlos, ohne Schlüssel)";
+    btn.title = "Rezepte von Websites mit öffentlicher API suchen (TheMealDB, TheCocktailDB, xSyna)";
     btn.innerHTML = `🔎 Web-Rezepte`;
     btn.addEventListener("click", openWebRecipesModal);
     const target = $("btn-import-recipe") || $("btn-new-recipe");
@@ -915,18 +940,25 @@ function ensureRecipeExtras() {
 
   syncOcrVocab();
 
+  const html = synaiSuggestionsHtml();
   const old = document.getElementById("sugg-section");
   if (old) old.remove();
-  state.currentSuggestions = state.inventory.length >= 2 ? generateRecipeSuggestions(state.inventory, { limit: 4 }) : [];
-  if (!state.currentSuggestions.length) return;
-
-  const wrap = document.createElement("div");
-  wrap.id = "sugg-section";
-  wrap.innerHTML = renderSuggestionSection(state.currentSuggestions);
+  if (!html) return;
   const cards = document.querySelector("#app-content .rec-cards");
-  if (cards) cards.before(wrap);
-  else document.querySelector("#app-content")?.appendChild(wrap);
+  if (cards) cards.insertAdjacentHTML("beforebegin", html);
+  else document.querySelector("#app-content")?.insertAdjacentHTML("beforeend", html);
   bindSuggestionActions();
+}
+
+// SynAI-Empfehlungen (Synaptic Foundation Model) aus dem Bestand.
+// Werden im Rezepte-Tab und im Bestand-Tab angezeigt, damit die
+// Empfehlung sofort sichtbar ist, sobald >= 2 Artikel im Bestand sind.
+function synaiSuggestionsHtml() {
+  state.currentSuggestions = state.inventory.length >= 2
+    ? generateRecipeSuggestions(state.inventory, { limit: 3 })
+    : [];
+  if (!state.currentSuggestions.length) return "";
+  return renderSuggestionSection(state.currentSuggestions);
 }
 
 // ============================================================
@@ -936,16 +968,17 @@ function ensureRecipeExtras() {
 // ============================================================
 function syncOcrVocab() {
   try {
-    const names = [];
+    // Nur Rezept-TITEL erweitern das Kamera-Vokabular – nicht die Zutaten.
+    // So erkennt die OCR keine beliebigen Wörter aus importierten Rezepten
+    // als Bestand, sondern bleibt bei der Wissensbasis plus Rezeptnamen.
+    const titles = [];
     for (const r of state.recipes) {
-      for (const ing of r.ingredients || []) {
-        if (ing && ing.name) names.push(ing.name);
-      }
+      if (r && r.title) titles.push(r.title);
     }
-    const key = names.join("|");
+    const key = titles.join("|");
     if (key !== (window.__XSYNA_RECIPE_VOCAB_KEY || "")) {
       window.__XSYNA_RECIPE_VOCAB_KEY = key;
-      window.__XSYNA_RECIPE_VOCAB = names;
+      window.__XSYNA_RECIPE_VOCAB = titles;
     }
   } catch {
     /* ignore */
@@ -965,12 +998,13 @@ if (typeof window !== "undefined") {
 // ============================================================
 const WEB_LS_CATS = "xsynarec_web_categories";
 
-async function fetchWebCategoriesCached() {
+async function fetchWebCategoriesCached(providerId = "themealdb") {
+  const key = WEB_LS_CATS + "_" + providerId;
   try {
-    const cached = readLS(WEB_LS_CATS, null);
+    const cached = readLS(key, null);
     if (Array.isArray(cached) && cached.length) return cached;
-    const cats = await fetchWebCategories("themealdb");
-    writeLS(WEB_LS_CATS, cats);
+    const cats = await fetchWebCategories(providerId);
+    writeLS(key, cats);
     return cats;
   } catch {
     return [];
@@ -1035,8 +1069,9 @@ async function openWebRecipesModal() {
         <button class="rec-icon-btn" data-close>${ICONS.x}</button>
       </div>
       <p style="color:var(--text-muted); font-size:0.78rem; margin-bottom:12px; line-height:1.5;">
-        Kostenlose öffentliche Rezept-API (TheMealDB, kein Schlüssel nötig). Ergebnisse werden automatisch mit deinem Bestand abgeglichen – fehlende Zutaten kannst du direkt auf die Einkaufsliste packen.
+        Rezepte aus öffentlichen Quellen (ohne Schlüssel) – Ergebnisse werden automatisch mit deinem Bestand abgeglichen. Fehlende Zutaten kannst du direkt auf die Einkaufsliste packen.
       </p>
+      <div id="web-providers" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
         <input id="web-query" class="rec-input" placeholder="Rezept suchen (z. B. Spaghetti, Chicken, Curry)…" style="flex:1; min-width:180px;" />
         <button class="btn btn-lime btn-sm" id="btn-web-search">${ICONS.spark} Suchen</button>
@@ -1045,7 +1080,7 @@ async function openWebRecipesModal() {
       <div id="web-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">Rezepte werden geladen…</div>
       <div id="web-results" style="display:flex; flex-direction:column; gap:12px; max-height:58vh; overflow:auto; padding-right:4px;"></div>
       <div class="rec-modal-foot">
-        <span style="font-size:0.72rem; color:var(--text-muted); margin-right:auto;">Powered by TheMealDB · Daten werden lokal verarbeitet</span>
+        <span id="web-source-note" style="font-size:0.72rem; color:var(--text-muted); margin-right:auto;"></span>
         <button class="btn btn-secondary btn-sm" data-close2>Schließen</button>
       </div>
     </div>
@@ -1059,7 +1094,25 @@ async function openWebRecipesModal() {
   const status = overlay.querySelector("#web-status");
   const resultsEl = overlay.querySelector("#web-results");
   const catsEl = overlay.querySelector("#web-cats");
+  const providersEl = overlay.querySelector("#web-providers");
+  const noteEl = overlay.querySelector("#web-source-note");
   let openId = null;
+  let activeProvider = "themealdb";
+  const providerName = () => (WEB_PROVIDERS.find((p) => p.id === activeProvider) || WEB_PROVIDERS[0]).name;
+
+  providersEl.innerHTML = WEB_PROVIDERS.map((p) =>
+    `<button class="rec-filter ${p.id === activeProvider ? "active" : ""}" data-provider="${escapeHtml(p.id)}" title="${escapeHtml(p.tagline)}">${escapeHtml(p.name)}</button>`
+  ).join("");
+  providersEl.querySelectorAll("[data-provider]").forEach((b) => {
+    b.addEventListener("click", () => {
+      activeProvider = b.dataset.provider;
+      providersEl.querySelectorAll(".rec-filter").forEach((x) => x.classList.toggle("active", x === b));
+      noteEl.textContent = providerName() + " · Daten werden lokal verarbeitet";
+      loadCategories();
+      load({});
+    });
+  });
+  noteEl.textContent = providerName() + " · Daten werden lokal verarbeitet";
 
   const render = (recipes) => {
     if (!recipes.length) {
@@ -1092,8 +1145,8 @@ async function openWebRecipesModal() {
     status.textContent = "⏳ Rezepte werden geladen…";
     status.style.color = "var(--text-muted)";
     try {
-      const recipes = await searchWebRecipes(opts);
-      status.textContent = recipes.length ? `${recipes.length} Rezepte von TheMealDB geladen.` : "Keine Treffer.";
+      const recipes = await searchWebRecipes({ ...opts, providerId: activeProvider });
+      status.textContent = recipes.length ? `${recipes.length} Rezepte von ${providerName()} geladen.` : "Keine Treffer.";
       render(recipes);
     } catch (e) {
       status.textContent = "❌ Web-Rezepte nicht erreichbar (offline oder API blockiert).";
@@ -1102,17 +1155,19 @@ async function openWebRecipesModal() {
     }
   };
 
-  fetchWebCategoriesCached().then((cats) => {
-    if (!cats.length || !overlay.isConnected) return;
-    catsEl.innerHTML = `<button class="rec-filter active" data-cat="">Alle / Neueste</button>` +
-      cats.map((c) => `<button class="rec-filter" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("");
-    catsEl.querySelectorAll("[data-cat]").forEach((b) => {
-      b.addEventListener("click", () => {
-        catsEl.querySelectorAll(".rec-filter").forEach((x) => x.classList.toggle("active", x === b));
-        load({ category: b.dataset.cat || "" });
+  const loadCategories = () => {
+    fetchWebCategoriesCached(activeProvider).then((cats) => {
+      if (!cats.length || !overlay.isConnected) { catsEl.innerHTML = ""; return; }
+      catsEl.innerHTML = `<button class="rec-filter active" data-cat="">Alle / Neueste</button>` +
+        cats.map((c) => `<button class="rec-filter" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("");
+      catsEl.querySelectorAll("[data-cat]").forEach((b) => {
+        b.addEventListener("click", () => {
+          catsEl.querySelectorAll(".rec-filter").forEach((x) => x.classList.toggle("active", x === b));
+          load({ category: b.dataset.cat || "" });
+        });
       });
     });
-  });
+  };
 
   overlay.querySelector("#btn-web-search").addEventListener("click", () => {
     const q = overlay.querySelector("#web-query").value.trim();
@@ -1122,6 +1177,7 @@ async function openWebRecipesModal() {
     if (e.key === "Enter") overlay.querySelector("#btn-web-search").click();
   });
 
+  loadCategories();
   load({});
 }
 
@@ -1143,7 +1199,7 @@ async function importWebRecipe(rec) {
   await persistRecipes();
   syncOcrVocab();
   renderContent();
-  toast(`Rezept „${rec.title}“ importiert – die Kamera-Erkennung kennt die Zutaten jetzt.`, "success");
+  toast(`Rezept „${rec.title}“ in deine Rezepte übernommen.`, "success");
 }
 
 function addWebMissingToList(rec) {
@@ -1168,9 +1224,9 @@ bindRecipes = function () {
 
 function renderSuggestionSection(suggestions) {
   return `
-    <div class="rec-sugg" style="margin-bottom: 30px;">
+    <div class="rec-sugg" id="sugg-section" style="margin-bottom: 30px;">
       <div class="rec-group-head" style="margin-bottom: 10px;">
-        <span style="display: inline-flex; align-items: center; gap: 6px;">${ICONS.spark} Synaptic-Vorschläge aus deinem Bestand</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">${ICONS.spark} SynAI empfiehlt – passend zu deinem Bestand</span>
         <span class="rec-group-count">${suggestions.length} ${suggestions.length === 1 ? "Idee" : "Ideen"}</span>
       </div>
       <div class="rec-cards">${suggestions.map(renderSuggestionCard).join("")}</div>
@@ -1207,7 +1263,7 @@ function renderSuggestionCard(s) {
 }
 
 function bindSuggestionActions() {
-  document.querySelectorAll("#sugg-section .rec-sugg-card").forEach((card) => {
+  document.querySelectorAll(".rec-sugg-card[data-sugg]").forEach((card) => {
     const id = card.dataset.sugg;
     const findS = () => state.currentSuggestions.find((x) => x.recipe.id === id);
     card.querySelector('[data-act="view-sugg"]')?.addEventListener("click", () => {
@@ -1540,6 +1596,7 @@ function renderInventory() {
     <div class="rec-kpis">${cards}</div>
     <div class="rec-filter-chips">${chips}</div>
     <div id="inv-groups">${groups.map(([cat, items]) => renderInvGroup(cat, items)).join("")}</div>
+    ${synaiSuggestionsHtml()}
   `;
 }
 function renderInvGroup(cat, items) {
@@ -1562,6 +1619,7 @@ function renderInvRow(item) {
     : "";
   return `
     <div class="rec-row" data-id="${item.id}">
+      <span class="rec-product-emoji" title="${escapeHtml(item.category)}">${productIcon(item)}</span>
       <span class="rec-src" title="${srcTitle}">${srcIcon}</span>
       <span class="rec-name">${escapeHtml(item.name)}</span>
       <span class="rec-amount">${formatAmount(item)}</span>
@@ -1835,6 +1893,7 @@ function bindInventory() {
     renderContent();
   });
   bindInvRows();
+  bindSuggestionActions();
 }
 function bindInvRows() {
   document.querySelectorAll("#app-content .rec-row[data-id]").forEach((row) => {
@@ -2537,6 +2596,7 @@ function renderRecipeDetail(r, servings) {
           const have = state.inventory.some((inv) => inv.name.toLowerCase() === i.name.toLowerCase());
           return `<div class="rec-row ${have ? "done" : ""}">
             <span class="rec-check ${have ? "on" : ""}">${have ? ICONS.check : ""}</span>
+            <span class="rec-product-emoji">${productIcon(i)}</span>
             <span class="rec-name">${escapeHtml(i.name)}</span>
             <span class="rec-amount">${formatAmount(i)}</span>
           </div>`;

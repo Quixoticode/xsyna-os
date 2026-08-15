@@ -487,10 +487,12 @@ export function generateRecipeSuggestions(inventory, { limit = 4 } = {}) {
 // Quellen können hier ergänzt werden (gleiche Schnittstelle).
 // ============================================================
 const THEMEALDB = "https://www.themealdb.com/api/json/v1/1/";
+const THECOCKTAILDB = "https://www.thecocktaildb.com/api/json/v1/1/";
 
-function themealdbIngredients(m) {
+// Gemeinsamer Zutaten-Extraktor für die „…DB“-Familie (strIngredient1..N)
+function dbIngredients(m, max) {
   const ings = [];
-  for (let i = 1; i <= 20; i++) {
+  for (let i = 1; i <= max; i++) {
     const ing = String(m["strIngredient" + i] || "").trim();
     const meas = String(m["strMeasure" + i] || "").trim();
     if (!ing || ing === "0" || /^[\s]*$/.test(ing)) continue;
@@ -507,7 +509,7 @@ function themealdbMeal(m) {
     id: "themealdb-" + m.idMeal,
     title: String(m.strMeal || "").trim().slice(0, 120) || "Unbenanntes Rezept",
     servings: Math.max(1, Math.min(24, Number(m.strServings) || 2)),
-    ingredients: themealdbIngredients(m),
+    ingredients: dbIngredients(m, 20),
     instructions: String(m.strInstructions || "").trim().slice(0, 5000),
     tags: [String(m.strCategory || "").trim(), String(m.strArea || "").trim()].filter(Boolean).slice(0, 6),
     image: String(m.strMealThumb || "").trim(),
@@ -516,11 +518,116 @@ function themealdbMeal(m) {
   };
 }
 
+function cocktaildbDrink(m) {
+  return {
+    id: "cocktaildb-" + m.idDrink,
+    title: String(m.strDrink || "").trim().slice(0, 120) || "Unbenannter Drink",
+    servings: 1,
+    ingredients: dbIngredients(m, 15),
+    instructions: String(m.strInstructions || "").trim().slice(0, 5000),
+    tags: [String(m.strCategory || "").trim(), String(m.strAlcoholic || "").trim()].filter(Boolean).slice(0, 6),
+    image: String(m.strDrinkThumb || "").trim(),
+    sourceUrl: "",
+    provider: "TheCocktailDB",
+  };
+}
+
+// ------------------------------------------------------------
+// xSyna Rezepte — kuratierte Klassiker, komplett offline
+// (dritte „Rezeptseite“ ohne Schlüssel und ohne Netz nötig)
+// ------------------------------------------------------------
+const CURATED_RECIPES = [
+  {
+    title: "Käsespätzle",
+    servings: 3,
+    tags: ["Klassiker", "Vegetarisch", "Pasta"],
+    ingredients: "500 g Spätzle\n200 g Käse\n2 Zwiebeln\n50 g Butter\nSchnittlauch\nSalz\nPfeffer",
+    instructions: "Spätzle nach Packungsanweisung kochen und abtropfen lassen. In einer Pfanne schichtweise Spätzle und Käse einschichten, Butterflöckchen verteilen und kurz schmelzen lassen. Mit gerösteten Zwiebeln und Schnittlauch servieren.",
+  },
+  {
+    title: "Gulaschsuppe",
+    servings: 4,
+    tags: ["Suppe", "Eintopf", "Klassiker"],
+    ingredients: "500 g Rindfleisch\n2 Zwiebeln\n2 Paprika\n2 EL Tomatenmark\n1 EL Paprikapulver\n1 l Brühe\n2 Knoblauchzehen\n2 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Fleisch würfeln und im Öl scharf anbraten. Zwiebeln, Knoblauch und Paprika zugeben. Tomatenmark und Paprikapulver einrühren, Brühe angießen und 1,5 Stunden leise schmoren. Mit Salz und Pfeffer abschmecken.",
+  },
+  {
+    title: "Kartoffelpuffer",
+    servings: 4,
+    tags: ["Klassiker", "Vegetarisch", "Schnell"],
+    ingredients: "1 kg Kartoffeln\n2 Eier\n2 EL Mehl\n1 Zwiebel\nSalz\nPfeffer\n3 EL Pflanzenöl",
+    instructions: "Kartoffeln und Zwiebel reiben, mit Eiern und Mehl verrühren und würzen. In heißem Öl portionsweise goldbraun ausbacken. Mit Apfelmus oder Kräuterquark servieren.",
+  },
+  {
+    title: "Erbsensuppe",
+    servings: 4,
+    tags: ["Suppe", "Eintopf", "Winter"],
+    ingredients: "500 g Erbsen\n2 Möhren\n1 Zwiebel\n1 Stange Lauch\n1 l Brühe\n2 EL Olivenöl\nSalz\nPfeffer",
+    instructions: "Zwiebel und Lauch im Öl anschwitzen. Möhren und Erbsen zugeben, Brühe angießen und 40 Minuten leise köcheln. Mit Salz und Pfeffer abschmecken.",
+  },
+  {
+    title: "Apfelkuchen",
+    servings: 8,
+    tags: ["Backen", "Süß", "Dessert"],
+    ingredients: "4 Äpfel\n200 g Mehl\n100 g Butter\n100 g Zucker\n2 Eier\n1 Packung Backpulver\n1 TL Zimt",
+    instructions: "Butter, Zucker und Eier schaumig rühren, Mehl mit Backpulver unterheben. Äpfel in Spalten schneiden und unter den Teig heben. In eine Form füllen, mit Zimt bestreuen und bei 175 °C 45 Minuten backen.",
+  },
+  {
+    title: "Maultaschen-Pfanne",
+    servings: 2,
+    tags: ["Schnell", "Pfanne", "Vegetarisch"],
+    ingredients: "400 g Maultaschen\n1 Zwiebel\n2 Eier\n2 EL Butter\nSchnittlauch\nSalz\nPfeffer",
+    instructions: "Maultaschen in Scheiben schneiden und mit Zwiebeln in Butter anbraten. Eier verquirlen, darübergeben und stocken lassen. Mit Salz, Pfeffer und Schnittlauch servieren.",
+  },
+  {
+    title: "Milchreis",
+    servings: 2,
+    tags: ["Süß", "Frühstück", "Klassiker"],
+    ingredients: "200 g Milchreis\n1 l Milch\n2 EL Zucker\n1 TL Zimt\n1 Prise Salz",
+    instructions: "Milch mit Zucker und Salz aufkochen, Reis einrühren und bei kleiner Hitze unter Rühren 30 Minuten quellen lassen. Mit Zimt und Zucker servieren.",
+  },
+  {
+    title: "Bohneneintopf",
+    servings: 4,
+    tags: ["Eintopf", "Winter", "Klassiker"],
+    ingredients: "2 Dosen Grüne Bohnen\n500 g Kartoffeln\n1 Zwiebel\n100 g Speck\n1 l Brühe\n1 EL Paprikapulver\nSalz\nPfeffer",
+    instructions: "Speck und Zwiebeln anbraten, Kartoffelwürfel und Bohnen zugeben. Brühe angießen und 25 Minuten köcheln. Mit Paprikapulver, Salz und Pfeffer würzen.",
+  },
+  {
+    title: "Zwiebelkuchen",
+    servings: 6,
+    tags: ["Backen", "Klassiker", "Herzhaft"],
+    ingredients: "1 Packung Pizzateig\n4 Zwiebeln\n100 g Speck\n200 g Schmand\n3 Eier\nSalz\nPfeffer\nKümmel",
+    instructions: "Teig ausrollen und in eine Form legen. Zwiebeln und Speck anbraten, mit Schmand und Eiern verrühren und würzen. Auf den Teig geben und bei 200 °C 35 Minuten backen.",
+  },
+  {
+    title: "Semmelknödel",
+    servings: 4,
+    tags: ["Beilage", "Vegetarisch", "Klassiker"],
+    ingredients: "6 Brötchen\n250 ml Milch\n2 Eier\n1 Zwiebel\nPetersilie\nSalz\nMuskat",
+    instructions: "Brötchen würfeln und mit warmer Milch übergießen. Zwiebelwürfel, Eier und Petersilie zugeben, würzen und zu Knödeln formen. In siedendem Wasser 20 Minuten gar ziehen lassen.",
+  },
+];
+
+function curatedRecipe(r) {
+  return {
+    id: "xsyna-" + String(r.title).toLowerCase().replace(/[^a-z0-9äöüß]+/g, "-"),
+    title: r.title,
+    servings: r.servings || 2,
+    ingredients: mergeItems(parseText(r.ingredients)).map((i) => ({ name: i.name, amount: i.amount, unit: i.unit, category: i.category })),
+    instructions: r.instructions || "",
+    tags: r.tags || [],
+    image: "",
+    sourceUrl: "",
+    provider: "xSyna",
+  };
+}
+
 export const WEB_PROVIDERS = [
   {
     id: "themealdb",
     name: "TheMealDB",
-    tagline: "Kostenlose öffentliche Rezept-API, kein Schlüssel nötig",
+    tagline: "Rezepte aus aller Welt – kostenlos, kein Schlüssel",
     searchUrl: (q) => THEMEALDB + "search.php?s=" + encodeURIComponent(q),
     ingredientUrl: (q) => THEMEALDB + "filter.php?i=" + encodeURIComponent(q),
     categoryUrl: (c) => THEMEALDB + "filter.php?c=" + encodeURIComponent(c),
@@ -530,7 +637,33 @@ export const WEB_PROVIDERS = [
     parseMeals: (json) => (json && json.meals) || [],
     parseMeal: (json) => (json && json.meals && json.meals[0]) || null,
     parseCategories: (json) => ((json && json.meals) || []).map((m) => String(m.strCategory || "").trim()).filter(Boolean),
+    idOf: (m) => m.idMeal,
     toRecipe: themealdbMeal,
+  },
+  {
+    id: "cocktaildb",
+    name: "TheCocktailDB",
+    tagline: "Getränke & Cocktails – kostenlos, kein Schlüssel",
+    searchUrl: (q) => THECOCKTAILDB + "search.php?s=" + encodeURIComponent(q),
+    ingredientUrl: (q) => THECOCKTAILDB + "filter.php?i=" + encodeURIComponent(q),
+    categoryUrl: (c) => THECOCKTAILDB + "filter.php?c=" + encodeURIComponent(c),
+    randomUrl: () => THECOCKTAILDB + "random.php",
+    lookupUrl: (id) => THECOCKTAILDB + "lookup.php?i=" + encodeURIComponent(id),
+    categoriesUrl: () => THECOCKTAILDB + "list.php?c=list",
+    parseMeals: (json) => (json && json.drinks) || [],
+    parseMeal: (json) => (json && json.drinks && json.drinks[0]) || null,
+    parseCategories: (json) => ((json && json.drinks) || []).map((m) => String(m.strCategory || "").trim()).filter(Boolean),
+    idOf: (m) => m.idDrink,
+    toRecipe: cocktaildbDrink,
+  },
+  {
+    id: "xsyna",
+    name: "xSyna Rezepte",
+    tagline: "Kuratierte Klassiker – funktioniert komplett offline",
+    type: "local",
+    localRecipes: CURATED_RECIPES.map(curatedRecipe),
+    localCategories: ["Klassiker", "Schnell", "Suppe", "Backen", "Vegetarisch"],
+    toRecipe: (m) => m,
   },
 ];
 
@@ -551,7 +684,7 @@ async function withLookups(provider, shortMeals, limit) {
   const out = [];
   for (const m of (shortMeals || []).slice(0, limit)) {
     try {
-      const full = provider.parseMeal(await fetchJson(provider.lookupUrl(m.idMeal)));
+      const full = provider.parseMeal(await fetchJson(provider.lookupUrl(provider.idOf(m))));
       if (full) out.push(full);
     } catch {
       /* einzelnes Rezept übersprungen */
@@ -564,6 +697,27 @@ async function withLookups(provider, shortMeals, limit) {
 // Ergebnisform: { id, title, servings, ingredients, instructions, tags, image, sourceUrl, provider }
 export async function searchWebRecipes({ query = "", ingredient = "", category = "", providerId = "themealdb", limit = 12 } = {}) {
   const provider = WEB_PROVIDERS.find((p) => p.id === providerId) || WEB_PROVIDERS[0];
+
+  if (provider.type === "local") {
+    const q = normalize(query);
+    const ing = normalize(ingredient);
+    const cat = String(category || "").trim().toLowerCase();
+    let list = provider.localRecipes || [];
+    if (q) {
+      list = list.filter((r) => {
+        const hay = normalize((r.title || "") + " " + (r.tags || []).join(" ") + " " + (r.ingredients || []).map((i) => i.name).join(" "));
+        return hay.includes(q);
+      });
+    }
+    if (ing) {
+      list = list.filter((r) => (r.ingredients || []).some((i) => normalize(i.name).includes(ing) || ing.includes(normalize(i.name))));
+    }
+    if (cat) {
+      list = list.filter((r) => (r.tags || []).some((t) => String(t).toLowerCase() === cat || String(t).toLowerCase().includes(cat)));
+    }
+    return list.slice(0, limit);
+  }
+
   let meals = [];
   if (query) {
     const json = await fetchJson(provider.searchUrl(query));
@@ -581,8 +735,9 @@ export async function searchWebRecipes({ query = "", ingredient = "", category =
       try {
         const json = await fetchJson(provider.randomUrl());
         const m = provider.parseMeal(json);
-        if (m && !seen.has(m.idMeal)) {
-          seen.add(m.idMeal);
+        const mid = provider.idOf(m);
+        if (m && mid != null && !seen.has(mid)) {
+          seen.add(mid);
           meals.push(m);
         }
       } catch {
@@ -595,6 +750,7 @@ export async function searchWebRecipes({ query = "", ingredient = "", category =
 
 export async function fetchWebCategories(providerId = "themealdb") {
   const provider = WEB_PROVIDERS.find((p) => p.id === providerId) || WEB_PROVIDERS[0];
+  if (provider.type === "local") return provider.localCategories || [];
   const json = await fetchJson(provider.categoriesUrl());
   return provider.parseCategories(json);
 }
