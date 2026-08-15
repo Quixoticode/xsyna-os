@@ -1300,6 +1300,7 @@ async function saveSuggestion(s) {
   const r = normalizeRecipe({ ...s.recipe, id: uuid(), created_at: new Date().toISOString() });
   state.recipes.unshift(r);
   await persistRecipes();
+  syncOcrVocab();
   renderContent();
   toast(`Rezept „${r.title}“ gespeichert.`, "success");
 }
@@ -1595,8 +1596,8 @@ function renderInventory() {
       </div>` : ""}
     <div class="rec-kpis">${cards}</div>
     <div class="rec-filter-chips">${chips}</div>
-    <div id="inv-groups">${groups.map(([cat, items]) => renderInvGroup(cat, items)).join("")}</div>
     ${synaiSuggestionsHtml()}
+    <div id="inv-groups">${groups.map(([cat, items]) => renderInvGroup(cat, items)).join("")}</div>
   `;
 }
 function renderInvGroup(cat, items) {

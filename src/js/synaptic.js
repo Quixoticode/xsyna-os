@@ -870,6 +870,22 @@ function buildOcrVocab(extraNames) {
   return entries;
 }
 
+// Wortgrenzen-respektierender Phrasen-Finder für normalisierten Text.
+// Umlaute zählen als Wortzeichen, sodass "apfel" nicht in "apfelsaft"
+// matcht und "möhren" trotz ä/ö/ü zuverlässig erkannt wird.
+const OCR_WORD_CHAR = /[a-zäöüß0-9]/;
+function findPhrase(text, phrase, from = 0) {
+  let idx = from;
+  while ((idx = text.indexOf(phrase, idx)) !== -1) {
+    const beforeOk = idx === 0 || !OCR_WORD_CHAR.test(text[idx - 1]);
+    const end = idx + phrase.length;
+    const afterOk = end >= text.length || !OCR_WORD_CHAR.test(text[end]);
+    if (beforeOk && afterOk) return idx;
+    idx = end;
+  }
+  return -1;
+}
+
 export function extractFromOcr(raw, vocab = []) {
   const lines = cleanOcr(raw);
   // Rezept-Zutaten aus der App (window.__XSYNA_RECIPE_VOCAB) ergänzen,
@@ -902,17 +918,28 @@ export function extractFromOcr(raw, vocab = []) {
     });
   };
 
-  // Alle bekannten Zutaten-Namen in einer Zeile finden (längste zuerst)
+  // Alle bekannten Zutaten-Namen in einer Zeile finden – positionsgetreu,
+  // längere Treffer zuerst, ohne Teilwort-Fehltreffer und ohne Zutaten zu
+  // überspringen, wenn mehrere Artikel in einer Zeile stehen.
   const embedded = (textNorm, cb) => {
-    let cursor = 0;
-    let found = false;
+    const hits = [];
     for (const v of entries) {
       if (v.norm.length < 3) continue;
-      const idx = textNorm.indexOf(v.norm, cursor);
-      if (idx === -1) continue;
+      let from = 0;
+      let idx;
+      while ((idx = findPhrase(textNorm, v.norm, from)) !== -1) {
+        hits.push({ idx, len: v.norm.length, v });
+        from = idx + v.norm.length;
+      }
+    }
+    hits.sort((a, b) => a.idx - b.idx || b.len - a.len);
+    let end = -1;
+    let found = false;
+    for (const h of hits) {
+      if (h.idx < end) continue; // überlappender Treffer (z. B. "rote bohnen" + "bohnen")
       found = true;
-      cb(v);
-      cursor = idx + v.norm.length;
+      cb(h.v);
+      end = h.idx + h.len;
     }
     return found;
   };
@@ -957,7 +984,7 @@ export function extractFromOcr(raw, vocab = []) {
   const fullNorm = normalize(lines.join(" "));
   for (const v of entries) {
     if (v.norm.length < 3) continue;
-    if (fullNorm.includes(v.norm)) {
+    if (findPhrase(fullNorm, v.norm) !== -1) {
       add(v.entry.name, null, v.entry.unit || "", v.entry.category || "Sonstiges", v.confidence, true);
     }
   }
