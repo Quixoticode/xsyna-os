@@ -204,8 +204,8 @@ const KNOWLEDGE = [
   K("Kokosmilch", "Konserven & Saucen", "ml", []),
   K("Honig", "Konserven & Saucen", "g", []),
   K("Marmelade", "Konserven & Saucen", "g", ["konfitüre", "erdbeermarmelade"]),
-  K("Schokocreme", "Konserven & Saucen", "g", ["nussnougatcreme", "schokocremes"]),
-  K("Nutella", "Süßes & Snacks", "g", ["nuss nougat creme", "nougatcreme"]),
+  K("Schokocreme", "Konserven & Saucen", "g", ["schokocremes", "nuss nougat creme aufstrich"]),
+  K("Nutella", "Süßes & Snacks", "g", ["nuss nougat creme", "nussnougatcreme", "nougatcreme", "nuss nougat aufstrich"]),
   K("Erdnussbutter", "Konserven & Saucen", "g", ["erdnussmus"]),
 
   // ----- Gewürze -----
@@ -235,7 +235,7 @@ const KNOWLEDGE = [
   K("Butterschmalz", "Öle & Fette", "g", ["schmalz"]),
 
   // ----- Getränke -----
-  K("Wasser", "Getränke", "l", ["mineralwasser", "stilles wasser", "sprudel", "tischwasser", "sparkling water"]),
+  K("Wasser", "Getränke", "l", ["mineralwasser", "stilles wasser", "stilles mineralwasser", "sprudel", "tischwasser", "sparkling water", "spritziges mineralwasser"]),
   K("Kaffee", "Getränke", "g", ["kaffeebohnen", "gemahlener kaffee", "kaffeepulver"]),
   K("Tee", "Getränke", "Stück", ["schwarztee", "grüner tee", "kamillentee", "teebeutel"]),
   K("Saft", "Getränke", "l", ["orangensaft", "apfelsaft", "multivitaminsaft"]),
@@ -839,7 +839,7 @@ const OCR_CHAR_FIXES = [
   [/[|¦]/g, "l"],
   [/\b0(?=[a-zäöüß])/g, "o"],
   [/\bl(?=0)/g, "l"],
-  [/\b(I|i|1)(?=[a-zäöüß]{2,})/g, "l"],
+  [/\b1(?=[a-zäöüß]{2,})/g, "l"],
   [/€/g, ""],
 ];
 
@@ -848,12 +848,17 @@ const OCR_CHAR_FIXES = [
 // damit Etiketten ("Wasser 1,5 l", "Nutella 450 g") Mengen behalten.
 function fixOcrQuantityLine(line) {
   let s = String(line || "");
+  // Geschätztes-Füllmengen-Zeichen „℮“ entfernen (oft als einzelnes „e“ erkannt)
+  s = s.replace(/℮/g, " ");
+  s = s.replace(/\be\s+(?=\d)/gi, " ");
+  s = s.replace(/(\d\s*(?:g|ml|l|kg|liter|gramm))\s+e\b/gi, "$1");
   // "450 9" / "4509" → "450 g" (g als 9 gelesen)
   s = s.replace(/(\d)\s+9\s*$/, "$1 g");
   s = s.replace(/^(\d{3})9$/, "$1 g");
-  // "1,5 I" → "1,5 l"
+  // "1,5 I" / "1,5 1" → "1,5 l" (l als I oder 1 gelesen)
   s = s.replace(/(\d)\s*I\s*$/, "$1 l");
-  return s;
+  s = s.replace(/(\d)\s+1\s*$/, "$1 l");
+  return s.replace(/\s+/g, " ").trim();
 }
 
 export function cleanOcr(raw) {
@@ -939,9 +944,21 @@ const OCR_NOISE = new Set([
 // Zeilen, die zu Zutaten-/Nährwert-/Allergenlisten gehören, dürfen keine
 // Bestands-Artikel erzeugen – sonst landet bei "Nutella" auch "Zucker".
 const OCR_SECTION_MARKERS = [
-  "zutaten", "nährwerte", "nahrwerte", "enthält", "enthaelt",
-  "allergenhinweis", "allergen", "kann spuren", "davon",
+  "zutaten", "zutatenverzeichnis", "inhaltsstoffe", "nährwerte", "nahrwerte",
+  "nährwertangaben", "enthält", "enthaelt", "allergenhinweis", "allergen",
+  "kann spuren", "davon", "je 100", "pro 100", "durchschnittliche nährwerte",
 ];
+
+// Packungsartige Mengenangaben („1,5 l“, „450 g“, „1 Dose“) vs. Nährwertzeilen
+// („55 g“ pro 100 g). Für g/ml gilt: erst ab 100 als Produktmenge werten.
+const PACKAGE_UNITS = new Set(["l", "kg", "Stück", "Dose", "Packung", "Flasche", "Glas", "Bund", "Rolle", "Zehe", "Beutel", "Becher", "Tüte", "Tube", "Würfel"]);
+function isPackageQuantity(q) {
+  if (!q || q.amount == null) return false;
+  if (PACKAGE_UNITS.has(q.unit)) return true;
+  if (q.unit === "g" || q.unit === "ml") return q.amount >= 100;
+  if (q.unit === "lb") return q.amount >= 0.25;
+  return false;
+}
 
 export function extractFromOcr(raw, vocab = []) {
   const lines = cleanOcr(raw);
@@ -1027,7 +1044,35 @@ export function extractFromOcr(raw, vocab = []) {
     };
   });
   analyzed.forEach((a) => {
-    a.labels = a.sectionNoise ? [] : findLabels(a.norm);
+    a.labels = findLabels(a.norm);
+  });
+
+  // Zutaten-/Nährwert-/Allergen-Abschnitte: nicht nur die Überschrift,
+  // sondern auch die Folgezeilen ignorieren. Sonst landet bei „Nutella“
+  // auch „Zucker“, „Nüsse“ und „Milch“ aus der Zutatenliste im Bestand.
+  // Ein neues Produkt beendet den Abschnitt nur bei einer packungsartigen
+  // Mengenangabe – nicht bei Nährwertzeilen wie „Zucker 55 g“ pro 100 g.
+  let inNoise = false;
+  for (let i = 0; i < analyzed.length; i++) {
+    const a = analyzed[i];
+    if (OCR_SECTION_MARKERS.some((m) => a.norm.includes(m))) {
+      inNoise = true;
+      a.sectionNoise = true;
+      continue;
+    }
+    if (!inNoise) continue;
+    const next = analyzed[i + 1];
+    const packageQty = a.qtys.find((q) => isPackageQuantity(q));
+    const nextPackageQty = next && next.qtys.find((q) => isPackageQuantity(q));
+    const productStart =
+      (a.labels.length && packageQty) ||
+      (a.labels.length && !a.qtys.length && next && !next.labels.length && nextPackageQty);
+    if (productStart) inNoise = false;
+    else a.sectionNoise = true;
+  }
+  // Neu als Rauschen markierte Zeilen verlieren ihre Labels.
+  analyzed.forEach((a) => {
+    if (a.sectionNoise) a.labels = [];
   });
 
   const usedQty = new Set();
@@ -1043,7 +1088,7 @@ export function extractFromOcr(raw, vocab = []) {
     const b = analyzed[qi];
     if (b.sectionNoise || !b.qtys.length || b.labels.length) continue;
     let best = null;
-    for (let d = 1; d <= 2; d++) {
+    for (let d = 1; d <= 5; d++) {
       for (const li of [qi - d, qi + d]) {
         if (li < 0 || li >= analyzed.length) continue;
         const a = analyzed[li];
