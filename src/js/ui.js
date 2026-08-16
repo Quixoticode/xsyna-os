@@ -1,6 +1,6 @@
 // Global UI helpers for xSyna
 
-const TOAST_CONTAINER_ID = "xs-toast-container";
+const TOAST_CONTAINER_ID = "xs-toast-container"; // id
 
 function getContainer() {
   let el = document.getElementById(TOAST_CONTAINER_ID);

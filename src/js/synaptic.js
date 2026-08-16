@@ -674,6 +674,9 @@ const UNIT_NORM = {
   fläschchen: "Fläschchen", flaeschchen: "Fläschchen", tube: "Tube",
 };
 const UNIT_RE = new RegExp("^(" + UNITS.join("|") + ")\\b", "i");
+// Erlaubt eine Zahl direkt gefolgt von einer Einheit ("450g", "1.5L"),
+// trennt Zahlen aber nicht von beliebigen Wörtern ("2x" bleibt "2x").
+const UNIT_LOOKAHEAD = new RegExp("^(?:\\s|$|[^a-zäöüß0-9]|(?:" + UNITS.join("|") + ")\\b)", "i");
 // Menge am ENDE der Zeile (Etikett-Stil): "Wasser 1,5 l", "Nutella 450g", "Milch 1 L"
 const TRAILING_QTY_RE = new RegExp(
   "^(.*?)\\s*(\\d+\\s*\\/\\s*\\d+|\\d+(?:[.,]\\d+)?(?:\\s*[-–]\\s*\\d+(?:[.,]\\d+)?)?|½|¼|¾|⅓|⅔)\\s*(" + UNITS.join("|") + ")\\s*$",
@@ -700,9 +703,11 @@ function parseAmount(raw) {
   let amount = null;
   let unit = null;
 
-  // 1) Zahl am Anfang (Bruch vor einfacher Zahl, dann Bereich/Dezimal)
-  const numMatch = rest.match(/^(\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|½|¼|¾|⅓|⅔)\b/);
-  if (numMatch) {
+  // 1) Zahl am Anfang (Bruch vor einfacher Zahl, dann Bereich/Dezimal).
+  //    "450g" und "1.5L" werden korrekt als Menge+Einheit gelesen,
+  //    ohne dass "450" allein aus "450g" herausgeschnitten wird.
+  const numMatch = rest.match(/^(\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|½|¼|¾|⅓|⅔)/);
+  if (numMatch && UNIT_LOOKAHEAD.test(rest.slice(numMatch[0].length))) {
     amount = toNumber(numMatch[1]);
     rest = rest.slice(numMatch[0].length).trim();
   } else {
@@ -838,12 +843,26 @@ const OCR_CHAR_FIXES = [
   [/€/g, ""],
 ];
 
+// OCR verwechselt Einheiten gerne mit Ziffern/Buchstaben.
+// Diese Zeilen-Korrektur stellt die wichtigsten Fälle wieder her,
+// damit Etiketten ("Wasser 1,5 l", "Nutella 450 g") Mengen behalten.
+function fixOcrQuantityLine(line) {
+  let s = String(line || "");
+  // "450 9" / "4509" → "450 g" (g als 9 gelesen)
+  s = s.replace(/(\d)\s+9\s*$/, "$1 g");
+  s = s.replace(/^(\d{3})9$/, "$1 g");
+  // "1,5 I" → "1,5 l"
+  s = s.replace(/(\d)\s*I\s*$/, "$1 l");
+  return s;
+}
+
 export function cleanOcr(raw) {
   let t = String(raw || "").replace(/\r/g, "\n");
   for (const [re, repl] of OCR_CHAR_FIXES) t = t.replace(re, repl);
   const lines = t
     .split("\n")
     .map((l) => l.replace(/\s+/g, " ").trim())
+    .map(fixOcrQuantityLine)
     .filter((l) => l.length >= 2);
   // Duplikate & reine Zahlen raus
   const seen = new Set();
@@ -917,6 +936,13 @@ const OCR_NOISE = new Set([
   "verbrauchen", "zutaten", "nährwerte", "nahrwerte", "preis", "serviervorschlag",
 ]);
 
+// Zeilen, die zu Zutaten-/Nährwert-/Allergenlisten gehören, dürfen keine
+// Bestands-Artikel erzeugen – sonst landet bei "Nutella" auch "Zucker".
+const OCR_SECTION_MARKERS = [
+  "zutaten", "nährwerte", "nahrwerte", "enthält", "enthaelt",
+  "allergenhinweis", "allergen", "kann spuren", "davon",
+];
+
 export function extractFromOcr(raw, vocab = []) {
   const lines = cleanOcr(raw);
   // Rezept-TITEL aus der App (window.__XSYNA_RECIPE_VOCAB) ergänzen,
@@ -972,7 +998,7 @@ export function extractFromOcr(raw, vocab = []) {
       end = h.idx + h.len;
       if (seenLabels.has(h.v.entry.name)) continue;
       seenLabels.add(h.v.entry.name);
-      out.push(h.v);
+      out.push({ ...h.v, idx: h.idx });
     }
     return out;
   };
@@ -989,33 +1015,46 @@ export function extractFromOcr(raw, vocab = []) {
     return out;
   };
 
-  const analyzed = lines.map((line) => ({
-    line,
-    norm: normalize(line),
-    labels: null,
-    qtys: findQtys(line),
-    parsed: parseLine(line),
-  }));
-  analyzed.forEach((a) => { a.labels = findLabels(a.norm); });
+  const analyzed = lines.map((line) => {
+    const norm = normalize(line);
+    return {
+      line,
+      norm,
+      sectionNoise: OCR_SECTION_MARKERS.some((m) => norm.includes(m)),
+      labels: null,
+      qtys: findQtys(line),
+      parsed: parseLine(line),
+    };
+  });
+  analyzed.forEach((a) => {
+    a.labels = a.sectionNoise ? [] : findLabels(a.norm);
+  });
 
   const usedQty = new Set();
   const qtyKey = (li, qi) => li + ":" + qi;
 
   // Etikett-Stil über mehrere Zeilen: „Wasser“ (Zeile 1) + „1,5 l“ (Zeile 2).
-  // Eine Mengen-Zeile wird der nächstgelegenen Label-Zeile zugeordnet.
+  // Jede Mengen-Zeile wird der nächstgelegenen, noch nicht versorgten
+  // Label-Zeile zugeordnet – bevorzugt der Zeile darüber (üblich: Name,
+  // dann Menge). So behalten auch mehrere Etiketten hintereinander
+  // („Tomaten / 500 g / Zwiebeln / 1 kg“) ihre jeweils richtige Menge.
   const cross = new Map();
-  for (let li = 0; li < analyzed.length; li++) {
-    const a = analyzed[li];
-    if (!a.labels.length || a.qtys.length || a.parsed.amount != null) continue;
+  for (let qi = 0; qi < analyzed.length; qi++) {
+    const b = analyzed[qi];
+    if (b.sectionNoise || !b.qtys.length || b.labels.length) continue;
+    let best = null;
     for (let d = 1; d <= 2; d++) {
-      let best = null;
-      for (const di of [li - d, li + d]) {
-        if (di < 0 || di >= analyzed.length) continue;
-        const b = analyzed[di];
-        if (b.qtys.length && !b.labels.length) { best = { li: di, q: b.qtys[0] }; break; }
+      for (const li of [qi - d, qi + d]) {
+        if (li < 0 || li >= analyzed.length) continue;
+        const a = analyzed[li];
+        if (!a.labels.length || a.qtys.length || a.parsed.amount != null) continue;
+        if (cross.has(li)) continue;
+        best = li;
+        break;
       }
-      if (best) { cross.set(li, best); break; }
+      if (best != null) break;
     }
+    if (best != null) cross.set(best, { li: qi, q: b.qtys[0] });
   }
 
   const commitLine = (li) => {
@@ -1045,20 +1084,35 @@ export function extractFromOcr(raw, vocab = []) {
           usedQty.add(qtyKey(c.li, 0));
         }
       }
-      add(lbl.entry.name, q ? q.amount : null, q ? q.unit : lbl.entry.unit || "", lbl.entry.category || "Sonstiges", Math.max(lbl.confidence, 0.85), true);
+      add(lbl.entry.name, q ? q.amount : null, q ? (q.unit || lbl.entry.unit || "") : lbl.entry.unit || "", lbl.entry.category || "Sonstiges", Math.max(lbl.confidence, 0.85), true);
       return;
     }
 
-    // Mehrere Labels: Mengen der Reihenfolge nach paaren
-    // („Tomaten 500 g Zwiebeln 2 Stück“).
+    // Mehrere Labels: Mengen positionsgetreu zuordnen
+    // („Tomaten 500 g Zwiebeln 2 Stück“ – auch in umgekehrter Reihenfolge).
     if (qtys.length) {
-      const n = Math.min(labels.length, qtys.length);
-      for (let k = 0; k < n; k++) {
-        add(labels[k].entry.name, qtys[k].amount, qtys[k].unit, labels[k].entry.category || "Sonstiges", Math.max(labels[k].confidence, 0.85), true);
-        usedQty.add(qtyKey(li, k));
-      }
-      for (let k = n; k < labels.length; k++) {
-        add(labels[k].entry.name, null, labels[k].entry.unit || "", labels[k].entry.category || "Sonstiges", labels[k].confidence, true);
+      const used = new Set();
+      for (const lbl of labels) {
+        let best = -1;
+        let bestDist = Infinity;
+        let bestAfter = false;
+        for (let k = 0; k < qtys.length; k++) {
+          if (used.has(k)) continue;
+          const dist = Math.abs(qtys[k].idx - lbl.idx);
+          const after = qtys[k].idx >= lbl.idx;
+          if (dist < bestDist || (dist === bestDist && after && !bestAfter)) {
+            best = k;
+            bestDist = dist;
+            bestAfter = after;
+          }
+        }
+        if (best >= 0) {
+          used.add(best);
+          add(lbl.entry.name, qtys[best].amount, qtys[best].unit || lbl.entry.unit || "", lbl.entry.category || "Sonstiges", Math.max(lbl.confidence, 0.85), true);
+          usedQty.add(qtyKey(li, best));
+        } else {
+          add(lbl.entry.name, null, lbl.entry.unit || "", lbl.entry.category || "Sonstiges", lbl.confidence, true);
+        }
       }
       return;
     }
@@ -1073,6 +1127,7 @@ export function extractFromOcr(raw, vocab = []) {
   //    einem doppelten „Wasser“-Label (ohne Menge) überschrieben wird.
   for (let li = 0; li < analyzed.length; li++) {
     const a = analyzed[li];
+    if (a.sectionNoise) continue;
     if (a.qtys.length || a.parsed.amount != null) commitLine(li);
   }
 
@@ -1091,7 +1146,7 @@ export function extractFromOcr(raw, vocab = []) {
 
   // 3) Kurze Zeilen mit Zahl, aber ohne bekanntes Label → unsicher übernehmen.
   for (const a of analyzed) {
-    if (a.labels.length || !a.qtys.length || a.parsed.amount == null) continue;
+    if (a.sectionNoise || a.labels.length || !a.qtys.length || a.parsed.amount == null) continue;
     const nameKey = normalize(a.parsed.name);
     if (!nameKey || OCR_NOISE.has(nameKey)) continue;
     const words = a.line.split(/\s+/).filter(Boolean);
@@ -1100,8 +1155,11 @@ export function extractFromOcr(raw, vocab = []) {
     }
   }
 
-  // 4) Gesamttext-Scan: Zutaten, die in keiner Zeile sauber standen.
-  const fullNorm = normalize(lines.join(" "));
+  // 4) Gesamttext-Scan über die Titel-Zeilen (ohne Zutaten-/Nährwertzeilen),
+  //    damit mehrzeilige Produktnamen („Nuss-Nougat-Creme“) erkannt werden,
+  //    aber Zutatenlisten nicht als Bestand landen.
+  const titleText = analyzed.filter((a) => !a.sectionNoise).map((a) => a.line).join(" ");
+  const fullNorm = normalize(titleText);
   for (const v of entries) {
     if (v.norm.length < 3) continue;
     if (findPhrase(fullNorm, v.norm) !== -1) {
