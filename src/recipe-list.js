@@ -630,6 +630,7 @@ function mapRecipe(r) {
     created_at: r.created_at,
     source: r.source || "manual",
     sourceUrl: r.sourceUrl || "",
+    provider: r.provider || "",
   };
 }
 
@@ -646,6 +647,7 @@ function normalizeRecipe(r) {
     created_at: r.created_at || new Date().toISOString(),
     source: r.source || "manual",
     sourceUrl: r.sourceUrl || r.source_url || "",
+    provider: r.provider || "",
   };
 }
 
@@ -1192,7 +1194,9 @@ async function importWebRecipe(rec) {
     instructions: rec.instructions || "",
     tags: rec.tags || [],
     is_public: false,
-    source_url: rec.sourceUrl || "",
+    source: "web",
+    provider: rec.provider || "",
+    sourceUrl: rec.sourceUrl || "",
     created_at: new Date().toISOString(),
   });
   state.recipes.unshift(r);
@@ -1297,7 +1301,7 @@ async function saveSuggestion(s) {
     toast("Ein Rezept mit diesem Titel existiert bereits.", "warning");
     return;
   }
-  const r = normalizeRecipe({ ...s.recipe, id: uuid(), created_at: new Date().toISOString() });
+  const r = normalizeRecipe({ ...s.recipe, id: uuid(), created_at: new Date().toISOString(), source: "synai" });
   state.recipes.unshift(r);
   await persistRecipes();
   syncOcrVocab();
@@ -1691,6 +1695,27 @@ function renderEmptyRecipes() {
   `;
 }
 
+function recipeSourceLabel(r) {
+  if (!r) return "";
+  if (r.provider) return r.provider;
+  if (r.source === "web") return "Website";
+  if (r.source === "jsonld") return "Website (JSON-LD)";
+  if (r.source === "website") return "Website";
+  if (r.source === "synai") return "SynAI (Synaptic FM)";
+  if (r.source === "shopping") return "Einkauf";
+  return "";
+}
+
+function recipeSourceChip(r) {
+  const label = recipeSourceLabel(r);
+  if (!label && !r.sourceUrl) return "";
+  const text = label || "Quelle";
+  if (r.sourceUrl) {
+    return `<a class="rec-chip muted" href="${escapeHtml(r.sourceUrl)}" target="_blank" rel="noopener" title="Original-Rezept öffnen" style="text-decoration:none;">${ICONS.link} ${escapeHtml(text)}</a>`;
+  }
+  return `<span class="rec-chip muted">${ICONS.link} ${escapeHtml(text)}</span>`;
+}
+
 function renderRecipeCard(s) {
   const r = s.recipe;
   const missingChips = s.missing.slice(0, 3).map((m) => `<span class="rec-chip">${escapeHtml(m.name)}</span>`).join("");
@@ -1712,6 +1737,7 @@ function renderRecipeCard(s) {
       <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;">
         ${s.complete ? `<span class="rec-chip ok">✅ Alles vorhanden</span>` : ""}
         ${missingChips}${more}
+        ${recipeSourceChip(r)}
       </div>
       <div class="rec-recipe-actions">
         <button class="btn btn-secondary btn-sm" data-act="view">Details</button>
@@ -2589,7 +2615,7 @@ function renderRecipeDetail(r, servings) {
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;">
       <div>
         <h2 style="font-size: 1.4rem; margin-bottom: 4px;">${escapeHtml(r.title)}</h2>
-        <p style="color: var(--text-muted); font-size: 0.8rem;">${servings} Portionen · ${(r.ingredients || []).length} Zutaten · ${r.is_public ? "öffentlich" : "privat"}</p>
+        <p style="color: var(--text-muted); font-size: 0.8rem;">${servings} Portionen · ${(r.ingredients || []).length} Zutaten · ${r.is_public ? "öffentlich" : "privat"}${recipeSourceLabel(r) ? ` · ${escapeHtml(recipeSourceLabel(r))}` : ""}</p>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
         <button class="btn btn-secondary btn-sm" id="svc-minus" title="Weniger Portionen">−</button>
@@ -2615,6 +2641,7 @@ function renderRecipeDetail(r, servings) {
       </div>
     </div>
     ${r.instructions ? `<div style="margin-bottom: 16px;"><div class="rec-group-head" style="margin-bottom: 8px;"><span>Zubereitung</span></div><p style="color: var(--text-secondary); font-size: 0.88rem; white-space: pre-wrap; line-height: 1.7;">${escapeHtml(r.instructions)}</p></div>` : ""}
+    ${r.sourceUrl ? `<p style="margin: 0 0 12px; font-size: 0.8rem;"><a href="${escapeHtml(r.sourceUrl)}" target="_blank" rel="noopener" style="color: var(--lime);">${ICONS.link} Original-Rezept öffnen ↗</a></p>` : ""}
     <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap;">
       <button class="btn btn-secondary btn-sm" data-del>${ICONS.trash} Löschen</button>
       <button class="btn btn-secondary btn-sm" data-copy>${ICONS.copy} Kopieren</button>

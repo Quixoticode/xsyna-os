@@ -743,7 +743,7 @@ function parseAmount(raw) {
 // ------------------------------------------------------------
 function matchLabel(name) {
   const q = normalize(name);
-  if (!q) return null;
+  if (!q) return { name: "", category: "Sonstiges", unit: null, confidence: 0.3 };
 
   // 1) Exakt
   const exact = KB_LOOKUP.get(q);
@@ -904,10 +904,23 @@ function findPhrase(text, phrase, from = 0) {
   return -1;
 }
 
+// Mengen + Einheiten an beliebiger Stelle einer Zeile finden
+// (Etikett-Stil: „1,5 l“, „450g“, „2 Flaschen“, „0,75 Liter“).
+const QTY_UNITS_SORTED = [...UNITS].sort((a, b) => b.length - a.length);
+const QTY_FIND_RE = new RegExp(
+  "(\\d+\\s*\\/\\s*\\d+|\\d+(?:[.,]\\d+)?(?:\\s*[-–]\\s*\\d+(?:[.,]\\d+)?)?|½|¼|¾|⅓|⅔)\\s*(" + QTY_UNITS_SORTED.join("|") + ")\\b",
+  "gi"
+);
+
+const OCR_NOISE = new Set([
+  "netto", "ean", "inhalt", "füllmenge", "abtropfgewicht", "mhd", "haltbar",
+  "verbrauchen", "zutaten", "nährwerte", "nahrwerte", "preis", "serviervorschlag",
+]);
+
 export function extractFromOcr(raw, vocab = []) {
   const lines = cleanOcr(raw);
-  // Rezept-Zutaten aus der App (window.__XSYNA_RECIPE_VOCAB) ergänzen,
-  // damit die Erkennung auch importierte/angelegte Zutaten kennt.
+  // Rezept-TITEL aus der App (window.__XSYNA_RECIPE_VOCAB) ergänzen,
+  // damit die Erkennung auch importierte/angelegte Rezeptnamen kennt.
   const appVocab =
     typeof window !== "undefined" && Array.isArray(window.__XSYNA_RECIPE_VOCAB)
       ? window.__XSYNA_RECIPE_VOCAB
@@ -936,10 +949,10 @@ export function extractFromOcr(raw, vocab = []) {
     });
   };
 
-  // Alle bekannten Zutaten-Namen in einer Zeile finden – positionsgetreu,
-  // längere Treffer zuerst, ohne Teilwort-Fehltreffer und ohne Zutaten zu
-  // überspringen, wenn mehrere Artikel in einer Zeile stehen.
-  const embedded = (textNorm, cb) => {
+  // Alle bekannten Zutaten in einer Zeile finden – positionsgetreu.
+  // Alias + Hauptlabel („Nutella“ + „Nuss-Nougat-Creme“) werden zu EINEM
+  // Artikel zusammengefasst, Überlappungen („rote bohnen“ + „bohnen“) gefiltert.
+  const findLabels = (textNorm) => {
     const hits = [];
     for (const v of entries) {
       if (v.norm.length < 3) continue;
@@ -952,53 +965,142 @@ export function extractFromOcr(raw, vocab = []) {
     }
     hits.sort((a, b) => a.idx - b.idx || b.len - a.len);
     let end = -1;
-    let found = false;
+    const out = [];
+    const seenLabels = new Set();
     for (const h of hits) {
-      if (h.idx < end) continue; // überlappender Treffer (z. B. "rote bohnen" + "bohnen")
-      found = true;
-      cb(h.v);
+      if (h.idx < end) continue;
       end = h.idx + h.len;
+      if (seenLabels.has(h.v.entry.name)) continue;
+      seenLabels.add(h.v.entry.name);
+      out.push(h.v);
     }
-    return found;
+    return out;
   };
 
-  for (const line of lines) {
-    const lineNorm = normalize(line);
-    if (!lineNorm) continue;
+  const findQtys = (line) => {
+    const out = [];
+    QTY_FIND_RE.lastIndex = 0;
+    let m;
+    while ((m = QTY_FIND_RE.exec(line)) !== null) {
+      const amount = toNumber(m[1]);
+      const unit = UNIT_NORM[(m[2] || "").toLowerCase()] || (m[2] || "").toLowerCase();
+      if (amount != null) out.push({ amount, unit, idx: m.index });
+    }
+    return out;
+  };
 
-    // 1) Zeile beginnt mit einer Menge (z. B. „500 g Zucker“)
-    const { amount } = parseAmount(line);
-    if (amount != null) {
-      const item = parseLine(line);
-      if (item.confidence >= 0.6) {
-        add(item.name, item.amount, item.unit, item.category, Math.max(item.confidence, 0.85), true);
-        continue;
+  const analyzed = lines.map((line) => ({
+    line,
+    norm: normalize(line),
+    labels: null,
+    qtys: findQtys(line),
+    parsed: parseLine(line),
+  }));
+  analyzed.forEach((a) => { a.labels = findLabels(a.norm); });
+
+  const usedQty = new Set();
+  const qtyKey = (li, qi) => li + ":" + qi;
+
+  // Etikett-Stil über mehrere Zeilen: „Wasser“ (Zeile 1) + „1,5 l“ (Zeile 2).
+  // Eine Mengen-Zeile wird der nächstgelegenen Label-Zeile zugeordnet.
+  const cross = new Map();
+  for (let li = 0; li < analyzed.length; li++) {
+    const a = analyzed[li];
+    if (!a.labels.length || a.qtys.length || a.parsed.amount != null) continue;
+    for (let d = 1; d <= 2; d++) {
+      let best = null;
+      for (const di of [li - d, li + d]) {
+        if (di < 0 || di >= analyzed.length) continue;
+        const b = analyzed[di];
+        if (b.qtys.length && !b.labels.length) { best = { li: di, q: b.qtys[0] }; break; }
       }
-      const found = embedded(lineNorm, (v) =>
-        add(v.entry.name, null, v.entry.unit || "", v.entry.category || "Sonstiges", v.confidence, true)
-      );
-      if (found) continue;
-      // unbekannt, aber mit Menge → unsicher übernehmen
-      add(item.name, item.amount, item.unit, item.category, item.confidence, false);
-      continue;
+      if (best) { cross.set(li, best); break; }
     }
-
-    // 2) ohne Menge: alle bekannten Zutaten-Namen der Zeile extrahieren
-    const found = embedded(lineNorm, (v) =>
-      add(v.entry.name, null, v.entry.unit || "", v.entry.category || "Sonstiges", v.confidence, true)
-    );
-    if (found) continue;
-
-    // 3) kurze, mengenartige Zeile → unsicher (nicht vorausgewählt)
-    const words = line.split(/\s+/).filter(Boolean);
-    if (/\d/.test(line) && words.length <= 5) {
-      const item = parseLine(line);
-      add(item.name, item.amount, item.unit, item.category, item.confidence, false);
-    }
-    // alles andere (Marken, URLs, Fließtext) wird verworfen
   }
 
-  // 4) Gesamttext-Scan: Zutaten, die in keiner Zeile direkt standen
+  const commitLine = (li) => {
+    const a = analyzed[li];
+    const labels = a.labels;
+    const qtys = a.qtys;
+
+    // Einzel-Artikel mit expliziter Menge → parseLine übernimmt auch
+    // Standard-Einheiten („2 Tomaten“ → „2 Stück“; „Wasser 1,5 l“).
+    if (labels.length <= 1 && a.parsed.amount != null && a.parsed.confidence >= 0.6) {
+      add(a.parsed.name, a.parsed.amount, a.parsed.unit, a.parsed.category, Math.max(a.parsed.confidence, 0.85), true);
+      if (qtys.length) usedQty.add(qtyKey(li, 0));
+      return;
+    }
+
+    // Genau ein Label: eigene Menge, sonst Menge aus der Nachbarzeile.
+    if (labels.length === 1) {
+      const lbl = labels[0];
+      let q = null;
+      if (qtys.length) {
+        q = qtys[qtys.length - 1];
+        usedQty.add(qtyKey(li, qtys.length - 1));
+      } else {
+        const c = cross.get(li);
+        if (c && !usedQty.has(qtyKey(c.li, 0))) {
+          q = c.q;
+          usedQty.add(qtyKey(c.li, 0));
+        }
+      }
+      add(lbl.entry.name, q ? q.amount : null, q ? q.unit : lbl.entry.unit || "", lbl.entry.category || "Sonstiges", Math.max(lbl.confidence, 0.85), true);
+      return;
+    }
+
+    // Mehrere Labels: Mengen der Reihenfolge nach paaren
+    // („Tomaten 500 g Zwiebeln 2 Stück“).
+    if (qtys.length) {
+      const n = Math.min(labels.length, qtys.length);
+      for (let k = 0; k < n; k++) {
+        add(labels[k].entry.name, qtys[k].amount, qtys[k].unit, labels[k].entry.category || "Sonstiges", Math.max(labels[k].confidence, 0.85), true);
+        usedQty.add(qtyKey(li, k));
+      }
+      for (let k = n; k < labels.length; k++) {
+        add(labels[k].entry.name, null, labels[k].entry.unit || "", labels[k].entry.category || "Sonstiges", labels[k].confidence, true);
+      }
+      return;
+    }
+
+    // Mehrere Labels ohne Menge → Namen übernehmen.
+    for (const lbl of labels) {
+      add(lbl.entry.name, null, lbl.entry.unit || "", lbl.entry.category || "Sonstiges", lbl.confidence, true);
+    }
+  };
+
+  // 1) Erst Zeilen MIT Menge verarbeiten, damit „Wasser 1,5 l“ nicht von
+  //    einem doppelten „Wasser“-Label (ohne Menge) überschrieben wird.
+  for (let li = 0; li < analyzed.length; li++) {
+    const a = analyzed[li];
+    if (a.qtys.length || a.parsed.amount != null) commitLine(li);
+  }
+
+  // 2) Zeilen ohne Menge: nächstgelegene Mengen-Zeile zuordnen.
+  const labelOnly = [];
+  for (let li = 0; li < analyzed.length; li++) {
+    const a = analyzed[li];
+    if (!a.qtys.length && a.parsed.amount == null && a.labels.length) labelOnly.push(li);
+  }
+  labelOnly.sort((x, y) => {
+    const dx = cross.has(x) ? Math.abs(cross.get(x).li - x) : 999;
+    const dy = cross.has(y) ? Math.abs(cross.get(y).li - y) : 999;
+    return dx - dy;
+  });
+  for (const li of labelOnly) commitLine(li);
+
+  // 3) Kurze Zeilen mit Zahl, aber ohne bekanntes Label → unsicher übernehmen.
+  for (const a of analyzed) {
+    if (a.labels.length || !a.qtys.length || a.parsed.amount == null) continue;
+    const nameKey = normalize(a.parsed.name);
+    if (!nameKey || OCR_NOISE.has(nameKey)) continue;
+    const words = a.line.split(/\s+/).filter(Boolean);
+    if (words.length <= 5) {
+      add(a.parsed.name, a.parsed.amount, a.parsed.unit, a.parsed.category, a.parsed.confidence, false);
+    }
+  }
+
+  // 4) Gesamttext-Scan: Zutaten, die in keiner Zeile sauber standen.
   const fullNorm = normalize(lines.join(" "));
   for (const v of entries) {
     if (v.norm.length < 3) continue;
