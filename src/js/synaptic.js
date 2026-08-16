@@ -116,7 +116,7 @@ const KNOWLEDGE = [
   K("Blumenkohl", "Obst & Gemüse", "Stück", ["karfiol"]),
   K("Rosenkohl", "Obst & Gemüse", "g", ["rosenkohl"]),
   K("Erbsen", "Obst & Gemüse", "g", ["erbsen", "peas"]),
-  K("Mais", "Obst & Gemüse", "Dose", ["maiskolben", "mais"]),
+  K("Mais", "Obst & Gemüse", "Dose", ["mais"]),
   K("Grüne Bohnen", "Obst & Gemüse", "g", ["bohnen", "brechbohnen", "grüne bohnen"]),
   K("Kürbis", "Obst & Gemüse", "Stück", ["hokkaido", "butternut"]),
   K("Avocado", "Obst & Gemüse", "Stück", ["avocados"]),
@@ -204,8 +204,8 @@ const KNOWLEDGE = [
   K("Kokosmilch", "Konserven & Saucen", "ml", []),
   K("Honig", "Konserven & Saucen", "g", []),
   K("Marmelade", "Konserven & Saucen", "g", ["konfitüre", "erdbeermarmelade"]),
-  K("Schokocreme", "Konserven & Saucen", "g", ["schokocremes", "nuss nougat creme aufstrich"]),
-  K("Nutella", "Süßes & Snacks", "g", ["nuss nougat creme", "nussnougatcreme", "nougatcreme", "nuss nougat aufstrich"]),
+  K("Schokocreme", "Konserven & Saucen", "g", ["schokocremes", "schoko creme", "schoko creme aufstrich"]),
+  K("Nutella", "Süßes & Snacks", "g", ["nuss nougat creme", "nussnougatcreme", "nougatcreme", "nuss nougat aufstrich", "nuss nougat creme aufstrich", "nuss-nougat-creme"]),
   K("Erdnussbutter", "Konserven & Saucen", "g", ["erdnussmus"]),
 
   // ----- Gewürze -----
@@ -258,7 +258,7 @@ const KNOWLEDGE = [
   K("Puddingpulver", "Süßes & Snacks", "Packung", []),
 
   // ----- Tiefkühl -----
-  K("TK-Gemüse", "Tiefkühl", "g", ["tiefkühlgemüse", "tk gemüse", "tiefkühl erbsen", "tiefkühlspinat"]),
+  K("TK-Gemüse", "Tiefkühl", "g", ["tiefkühlgemüse", "tk gemüse", "tiefkühl erbsen"]),
   K("Pommes", "Tiefkühl", "g", ["pommes frites"]),
   K("Fischstäbchen", "Tiefkühl", "g", []),
   K("TK-Pizza", "Tiefkühl", "Stück", ["tiefkühlpizza", "pizza"]),
@@ -679,7 +679,7 @@ const UNIT_RE = new RegExp("^(" + UNITS.join("|") + ")\\b", "i");
 const UNIT_LOOKAHEAD = new RegExp("^(?:\\s|$|[^a-zäöüß0-9]|(?:" + UNITS.join("|") + ")\\b)", "i");
 // Menge am ENDE der Zeile (Etikett-Stil): "Wasser 1,5 l", "Nutella 450g", "Milch 1 L"
 const TRAILING_QTY_RE = new RegExp(
-  "^(.*?)\\s*(\\d+\\s*\\/\\s*\\d+|\\d+(?:[.,]\\d+)?(?:\\s*[-–]\\s*\\d+(?:[.,]\\d+)?)?|½|¼|¾|⅓|⅔)\\s*(" + UNITS.join("|") + ")\\s*$",
+  "^(.*?)\\s*(\\d+\\s+\\d+\\s*\\/\\s*\\d+|\\d+\\s+[½¼¾⅓⅔]|\\d+\\s*\\/\\s*\\d+|\\d+(?:[.,]\\d+)?(?:\\s*[-–]\\s*\\d+(?:[.,]\\d+)?)?|½|¼|¾|⅓|⅔)\\s*(" + UNITS.join("|") + ")\\s*$",
   "i"
 );
 
@@ -687,6 +687,13 @@ function toNumber(raw) {
   if (raw == null) return null;
   let s = String(raw).trim().replace(",", ".");
   if (FRACTIONS[s]) return FRACTIONS[s];
+  // Gemischte Zahl: "1 1/2" / "2 ¼"
+  const mixed = s.match(/^(\d+)\s+(\d+\s*\/\s*\d+|½|¼|¾|⅓|⅔)$/);
+  if (mixed) {
+    const whole = parseInt(mixed[1], 10);
+    const part = toNumber(mixed[2]);
+    return part != null ? whole + part : whole;
+  }
   // Bruch 1/2
   const frac = s.match(/^(\d+)\s*\/\s*(\d+)$/);
   if (frac) return parseInt(frac[1], 10) / parseInt(frac[2], 10);
@@ -706,7 +713,7 @@ function parseAmount(raw) {
   // 1) Zahl am Anfang (Bruch vor einfacher Zahl, dann Bereich/Dezimal).
   //    "450g" und "1.5L" werden korrekt als Menge+Einheit gelesen,
   //    ohne dass "450" allein aus "450g" herausgeschnitten wird.
-  const numMatch = rest.match(/^(\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|½|¼|¾|⅓|⅔)/);
+  const numMatch = rest.match(/^(\d+\s+\d+\s*\/\s*\d+|\d+\s+[½¼¾⅓⅔]|\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|½|¼|¾|⅓|⅔)/);
   if (numMatch && UNIT_LOOKAHEAD.test(rest.slice(numMatch[0].length))) {
     amount = toNumber(numMatch[1]);
     rest = rest.slice(numMatch[0].length).trim();
