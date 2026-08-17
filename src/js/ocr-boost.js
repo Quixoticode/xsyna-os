@@ -42,11 +42,22 @@ function fixUnits(line) {
 // Klare MHD-/Haltbarkeits-Zeilen verwerfen (kein Produkt, kein Bestand).
 const NOISE_LINE_RE = /^(?:mhd|mindestens\s+haltbar|haltbar\s+bis|zu\s+verbrauchen\s+bis|abgelaufen\s+am|haltbarkeitsdatum)\b.*$/i;
 
+// Etikett-Beschriftungen vor der Mengenangabe entfernen:
+// "Nettofüllmenge 1,5 l" / "Inhalt: 450 g" / "Abtropfgewicht 400 g"
+// werden zu reinen Mengenzeilen, damit die Menge dem Produkt darüber
+// zugeordnet wird und kein Pseudo-Artikel "Nettofüllmenge" entsteht.
+const LABEL_NOISE_PREFIX = /^(?:netto[\s-]*(?:f\u00fcllmenge|fullmenge|inhalt)?|f\u00fcllmenge|fullmenge|inhalt|abtropfgewicht)\s*:?\s*/i;
+
+function stripLabelNoise(line) {
+  return String(line || "").replace(LABEL_NOISE_PREFIX, "").trim();
+}
+
 export function preprocessOcrText(raw) {
   return String(raw || "")
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter((line) => line.length >= 2 && !NOISE_LINE_RE.test(line))
+    .map(stripLabelNoise)
     .map(fixUnits)
     .filter(Boolean)
     .join("\n");
