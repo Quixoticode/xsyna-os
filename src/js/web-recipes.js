@@ -211,6 +211,8 @@ const GEN_AMOUNT = {
   "Möhren": [2, "Stück"], "Zwiebeln": [1, "Stück"], "Knoblauch": [2, "Zehe"], "Lauch": [1, "Stück"],
   "Brokkoli": [1, "Stück"], "Blumenkohl": [1, "Stück"], "Champignons": [150, "g"], "Spinat": [100, "g"],
   "Frischkäse": [100, "g"], "Zitronen": [1, "Stück"], "Limetten": [1, "Stück"], "Gurken": [1, "Stück"],
+  "Haferflocken": [60, "g"], "Milch": [200, "ml"], "Hafermilch": [200, "ml"], "Mandelmilch": [200, "ml"],
+  "Sojamilch": [200, "ml"], "Milchreis": [100, "g"], "Honig": [1, "EL"], "Marmelade": [2, "EL"],
 };
 
 function genIng(name, servings, fallbackUnit) {
@@ -232,15 +234,16 @@ function pick(inv, names) {
   return inv.find((i) => names.includes(i.name)) || null;
 }
 
-function savoryVegs(inv, n) {
-  return inv.filter((i) => i.category === "Obst & Gemüse" && !SWEET_FRUITS.has(i.name)).slice(0, n);
+function savoryVegs(inv, n, exclude = []) {
+  const excl = new Set(exclude.filter(Boolean));
+  return inv.filter((i) => i.category === "Obst & Gemüse" && !SWEET_FRUITS.has(i.name) && !excl.has(i.name)).slice(0, n);
 }
 
 function buildPfanne(inv) {
   const base = pick(inv, ["Nudeln", "Spätzle", "Reis", "Kartoffeln"]);
   const protein = pick(inv, PROTEIN_NAMES);
-  const vegs = savoryVegs(inv, 2);
-  if (!protein && !vegs.length && !base) return null;
+  const vegs = savoryVegs(inv, 2, [base && base.name, protein && protein.name]);
+  if (!protein && !vegs.length) return null;
   const sauce = pick(inv, ["Sojasauce", "Kokosmilch", "Passierte Tomaten", "Sahne"]);
   const ing = [];
   if (base) ing.push(genIng(base.name, 2));
@@ -290,7 +293,7 @@ function buildAuflauf(inv) {
   const base = pick(inv, ["Nudeln", "Kartoffeln", "Spätzle", "Tortellini"]);
   const cheese = pick(inv, ["Käse", "Mozzarella", "Feta", "Sahne", "Schmand", "Crème fraîche"]);
   if (!base || !cheese) return null;
-  const vegs = savoryVegs(inv, 2);
+  const vegs = savoryVegs(inv, 2, [base.name]);
   if (!vegs.length) return null;
   const ing = [];
   ing.push(genIng(base.name, 2));
@@ -309,7 +312,7 @@ function buildAuflauf(inv) {
 function buildSuppe(inv) {
   const broth = pick(inv, ["Brühe"]);
   const kartoffeln = pick(inv, ["Kartoffeln"]);
-  const vegs = savoryVegs(inv, 2);
+  const vegs = savoryVegs(inv, 2, kartoffeln ? [kartoffeln.name] : []);
   if (!broth || (!kartoffeln && !vegs.length)) return null;
   const ing = [];
   if (kartoffeln) ing.push(genIng("Kartoffeln", 4));
@@ -444,7 +447,54 @@ function buildWrap(inv) {
   return { title, servings: 2, ingredients: ing, instructions: steps.filter(Boolean).join("\n"), tags: ["Schnell", "Wrap"] };
 }
 
-const GENERATORS = [buildPfanne, buildCurry, buildAuflauf, buildSuppe, buildSalat, buildPasta, buildEier, buildOfen, buildBowl, buildWrap];
+function buildToast(inv) {
+  const base = pick(inv, ["Brot", "Brötchen", "Baguette", "Wraps", "Pita"]);
+  const topping = pick(inv, ["Käse", "Schinken", "Salami", "Speck", "Eier", "Avocado", "Frischkäse", "Pesto", "Thunfisch", "Marmelade", "Honig"]);
+  if (!base || !topping) return null;
+  const sweet = topping.name === "Marmelade" || topping.name === "Honig";
+  const ing = [genIng(base.name, 2), genIng(topping.name, 2, topping.unit)];
+  if (topping.name === "Eier") ing.push(genIng("Butter", 2));
+  if (!sweet) ing.push(genIng("Salz", 2), genIng("Pfeffer", 2));
+  const title = `${base.name} mit ${topping.name}`;
+  const steps = [
+    `${base.name} toasten oder aufbacken.`,
+    topping.name === "Eier" ? "Eier braten oder kochen und auflegen." : `${topping.name} auf dem ${base.name.toLowerCase()} verteilen.`,
+    sweet ? "Direkt genießen." : "Mit Salz und Pfeffer abschmecken.",
+  ];
+  return { title, servings: 2, ingredients: ing, instructions: steps.join("\n"), tags: ["Schnell", "Brotzeit"] };
+}
+
+function buildOats(inv) {
+  const oats = pick(inv, ["Haferflocken"]);
+  const liquid = pick(inv, ["Milch", "Joghurt", "Hafermilch", "Mandelmilch", "Sojamilch"]);
+  if (!oats || !liquid) return null;
+  const fruit = pick(inv, ["Bananen", "Äpfel", "Himbeeren", "Blaubeeren", "Erdbeeren"]);
+  const ing = [genIng("Haferflocken", 1), genIng(liquid.name, 1, liquid.unit)];
+  if (fruit) ing.push(genIng(fruit.name, 1, fruit.unit));
+  if (pick(inv, ["Honig"])) ing.push(genIng("Honig", 1));
+  const title = "Haferflocken-" + (liquid.name === "Joghurt" ? "Joghurt" : "Porridge") + (fruit ? " mit " + fruit.name : "");
+  const steps = [
+    `Haferflocken mit ${liquid.name.toLowerCase()} verrühren.`,
+    fruit ? `${fruit.name} klein schneiden und unterheben.` : "Kurz ziehen lassen und genießen.",
+    pick(inv, ["Honig"]) ? "Nach Belieben mit Honig süßen." : "Nach Belieben süßen.",
+  ];
+  return { title, servings: 1, ingredients: ing, instructions: steps.join("\n"), tags: ["Frühstück", "Schnell"] };
+}
+
+function buildMilchreis(inv) {
+  const milk = pick(inv, ["Milch"]);
+  const rice = pick(inv, ["Milchreis", "Reis"]);
+  if (!milk || !rice) return null;
+  const ing = [genIng(rice.name, 2, "g"), genIng("Milch", 2), genIng("Zucker", 2)];
+  if (pick(inv, ["Zimt"])) ing.push(genIng("Zimt", 2));
+  const steps = [
+    `Milch aufkochen, ${rice.name.toLowerCase()} einrühren und bei kleiner Hitze unter Rühren quellen lassen.`,
+    "Mit Zucker (und Zimt) abschmecken und warm servieren.",
+  ];
+  return { title: "Milchreis", servings: 2, ingredients: ing, instructions: steps.join("\n"), tags: ["Süß", "Frühstück"] };
+}
+
+const GENERATORS = [buildPfanne, buildCurry, buildAuflauf, buildSuppe, buildSalat, buildPasta, buildEier, buildOfen, buildBowl, buildWrap, buildToast, buildOats, buildMilchreis];
 
 // Bestand → konkrete Rezept-Vorschläge (inkl. Bestands-Abdeckung)
 export function generateRecipeSuggestions(inventory, { limit = 4 } = {}) {

@@ -18,7 +18,6 @@ import {
   normalize,
   parseLine,
   parseText,
-  extractFromOcr,
   mergeItems,
   inventoryCoverage,
   suggestRecipes,
@@ -31,6 +30,7 @@ import {
   searchLabels,
   CATEGORIES,
 } from "./js/synaptic.js";
+import { extractFromOcr } from "./js/ocr-boost.js";
 import {
   extractRecipeFromHtml,
   generateRecipeSuggestions,
