@@ -648,8 +648,8 @@ const WORD_NUMBERS = {
 };
 const FRACTIONS = { "½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
 const UNITS = [
-  "kg", "g", "ml", "l", "liter", "gramm", "kilogramm", "milliliter",
-  "cup", "cups", "tbsp", "tablespoon", "tablespoons", "tsp", "teaspoon", "teaspoons", "lb", "lbs",
+  "kg", "g", "gr", "ml", "l", "liter", "gramm", "kilogramm", "kilo", "milliliter",
+  "oz", "ounce", "ounces", "cup", "cups", "tbsp", "tablespoon", "tablespoons", "tsp", "teaspoon", "teaspoons", "lb", "lbs",
   "stück", "stk", "packung", "pck", "pkg", "dose", "bund", "prise",
   "el", "tl", "tasse", "tassen", "scheibe", "scheiben", "flasche", "flaschen",
   "glas", "gläser", "zehe", "zehen", "würfel", "beutel", "becher", "rolle", "rollen",
@@ -658,7 +658,8 @@ const UNITS = [
   "schale", "tüte", "tute", "päckchen", "paeckchen", "fläschchen", "flaeschchen", "tube",
 ];
 const UNIT_NORM = {
-  kg: "kg", gramm: "g", g: "g", liter: "l", l: "l", milliliter: "ml", ml: "ml", kilogramm: "kg",
+  kg: "kg", gramm: "g", g: "g", gr: "g", liter: "l", l: "l", milliliter: "ml", ml: "ml", kilogramm: "kg", kilo: "kg",
+  oz: "oz", ounce: "oz", ounces: "oz",
   stück: "Stück", stk: "Stück", packung: "Packung", pck: "Packung", pkg: "Packung",
   cup: "Tasse", cups: "Tasse", tbsp: "EL", tablespoon: "EL", tablespoons: "EL",
   tsp: "TL", teaspoon: "TL", teaspoons: "TL", lb: "lb", lbs: "lb",
