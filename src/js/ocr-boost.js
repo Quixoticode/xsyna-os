@@ -28,18 +28,22 @@ function escapeRegExp(s) {
 function fixUnits(line) {
   let t = String(line || "").replace(/\s+/g, " ").trim();
 
+  // Zahl+Einheit ohne Leerzeichen normalisieren (1kg -> 1 kg)
+  t = t.replace(/\b(\d+(?:[.,]\d+)?)(kg|ml|oz|lb|stk|stück|dose|flasche|glas|bund|el|tl|packung|becher|rolle|liter|gramm|milliliter|kilogramm|g|l)\b/gi, "$1 $2");
+
   // ml: „750 m1 / m| / mi / rnl“ (komplette Zahl erfassen, nicht nur die letzte Ziffer)
-  t = t.replace(/(\d+(?:[.,]\d+)?)\s*(?:rnl|m\s*[1|iIlL])\s*$/u, "$1 ml");
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s*(?:rnl|m\s*[1|iIlL])(?=\s|$)/gi, "$1 ml");
   // kg: „1 k9 / kq / ko / k g“
-  t = t.replace(/(\d+(?:[.,]\d+)?)\s*k\s*[9gqoO]\s*$/u, "$1 kg");
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s*k\s*[9gqoO](?=\s|$)/g, "$1 kg");
   // l: Dezimalzahl eindeutig Liter („1,5 I/L/1/|/i“)
-  t = t.replace(/(\d[.,]\d+)\s*[I1|iL]\s*$/u, "$1 l");
+  t = t.replace(/(\d[.,]\d+)\s*[I1|iL](?=\s|$)/g, "$1 l");
   // l: Ganzzahl + freistehendes I/1/| („1 I“, „2 1“) – EL/TL bleiben unberührt
-  t = t.replace(/(\d+(?:[.,]\d+)?)\s+[I|1]\s*$/u, "$1 l");
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s*[I|i](?=\s|$)/g, "$1 l");
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s+1\s*$/g, "$1 l");
   // l: Ganzzahl + freistehendes L („1 L“, „2 L“)
-  t = t.replace(/(\d+(?:[.,]\d+)?)\s+L\s*$/u, "$1 l");
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s*L(?=\s|$)/g, "$1 l");
   // g: „450 9 / 4509 / 450 8 / 450 q“ am Zeilenende
-  t = t.replace(/(^|\s)(\d{2,4})\s*[9q8]\s*$/u, "$1$2 g");
+  t = t.replace(/(^|\s)(\d{2,4})\s*[9q8](?=\s|$)/g, "$1$2 g");
 
   return t.replace(/\s+/g, " ").trim();
 }
@@ -58,12 +62,24 @@ function stripLabelNoise(line) {
 }
 
 // Bekannte Zutaten (Wissensbasis) für die Mehrfach-Produkt-Trennung.
-const KNOWN_NORMS = getKnownIngredients()
-  .map((n) => normalize(n))
-  .filter((n) => n && n.length >= 3)
-  .sort((a, b) => b.length - a.length);
+function buildSplitLabelForms() {
+  const forms = new Set();
+  for (const n of getKnownIngredients()) {
+    const s = String(n || "").trim();
+    if (s.length >= 3) forms.add(s);
+    // Plural -> Singular ("Tomaten" -> "Tomate")
+    if (s.endsWith("n") && s.length > 4) forms.add(s.slice(0, -1));
+  }
+  for (const extra of ["apfel", "ei", "tomate", "gurke", "zwiebel", "karotte", "banane", "orange", "zitrone", "kartoffel", "birne", "limette"]) {
+    forms.add(extra);
+  }
+  return [...forms].sort((a, b) => b.length - a.length);
+}
 
-const KNOWN_LABELS = getKnownIngredients()
+const KNOWN_LABELS = buildSplitLabelForms();
+
+const KNOWN_NORMS = KNOWN_LABELS
+  .map((n) => normalize(n))
   .filter((n) => n && n.length >= 3)
   .sort((a, b) => b.length - a.length);
 
