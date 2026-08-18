@@ -1,5 +1,5 @@
 // ============================================================
-// xSyna — OCR-Boost (Vorverarbeitung für die Kamera-Erkennung)
+// xSyna — OCR-Boost (v2) (Vorverarbeitung für die Kamera-Erkennung)
 // ------------------------------------------------------------
 // Läuft VOR extractFromOcr() und repariert typische Tesseract-
 // Verwechslungen von Einheiten, damit Etiketten wie
@@ -7,34 +7,39 @@
 //   „Nutella 450 9/4508“   →   „Nutella 450 g“
 //   „750 m1/rnl“           →   „750 ml“
 //   „1 k9“                 →   „1 kg“
-// korrekt erkannt werden. Reine MHD-/Datum-Zeilen werden entfernt,
-// damit sie nicht als Bestand landen.
+// korrekt erkannt werden. Zusätzlich werden Mehrfach-Produkte in
+// einer Zeile getrennt („2 Tomaten, 1 Gurke, 500 g Mehl“) und
+// fehlende Mengen anhand typischer Packungsgrößen geschätzt.
+// Reine MHD-/Datum-Zeilen werden entfernt, damit sie nicht als
+// Bestand landen.
 // ============================================================
-import { extractFromOcr as baseExtractFromOcr, normalize } from "./synaptic.js";
+import {
+  extractFromOcr as baseExtractFromOcr,
+  normalize,
+  getKnownIngredients,
+} from "./synaptic.js";
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 // Einheit „l“ wird von OCR gern als I, L, 1, | oder i gelesen –
 // mit Dezimaltrenner („1,5“) ist Liter eindeutig.
 function fixUnits(line) {
-  let t = String(line || "");
+  let t = String(line || "").replace(/\s+/g, " ").trim();
 
-  // ml als „m1“, „m|“, „mi“ oder „rnl“ („rn“ als „m“ verlesen)
-  t = t.replace(/(\d(?:[.,]\d+)?)\s*m\s*[1|iI]\s*$/u, "$1 ml");
-  t = t.replace(/(\d(?:[.,]\d+)?)\s*rnl\s*$/u, "$1 ml");
-
-  // kg als „k9“, „k g“, „ko“
-  t = t.replace(/(\d(?:[.,]\d+)?)\s*k\s*[9go]\s*$/u, "$1 kg");
-
-  // l als I, L, 1, |, i (mit Dezimaltrenner eindeutig Liter)
+  // ml: „750 m1 / m| / mi / rnl“ (komplette Zahl erfassen, nicht nur die letzte Ziffer)
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s*(?:rnl|m\s*[1|iIlL])\s*$/u, "$1 ml");
+  // kg: „1 k9 / kq / ko / k g“
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s*k\s*[9gqoO]\s*$/u, "$1 kg");
+  // l: Dezimalzahl eindeutig Liter („1,5 I/L/1/|/i“)
   t = t.replace(/(\d[.,]\d+)\s*[I1|iL]\s*$/u, "$1 l");
-  // l als I, 1, | (mit Leerzeichen vor der Einheit)
-  t = t.replace(/(\d)\s+[I|1]\s*$/u, "$1 l");
-  // „1 L“ / „2L“ → „1 l“ (EL/TL bleiben unberührt: „2 EL“ hat ein E davor)
-  t = t.replace(/(\d)\s*L\s*$/u, "$1 l");
-
-  // g als „9“/„8“ am Zeilenende: „4509“, „450 9“, „4508“
-  t = t.replace(/(^|\s)(\d{2,4})\s*[98]\s*$/u, "$1$2 g");
-  // g als „q“ verlesen
-  t = t.replace(/(\d(?:[.,]\d+)?)\s*q\s*$/u, "$1 g");
+  // l: Ganzzahl + freistehendes I/1/| („1 I“, „2 1“) – EL/TL bleiben unberührt
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s+[I|1]\s*$/u, "$1 l");
+  // l: Ganzzahl + freistehendes L („1 L“, „2 L“)
+  t = t.replace(/(\d+(?:[.,]\d+)?)\s+L\s*$/u, "$1 l");
+  // g: „450 9 / 4509 / 450 8 / 450 q“ am Zeilenende
+  t = t.replace(/(^|\s)(\d{2,4})\s*[9q8]\s*$/u, "$1$2 g");
 
   return t.replace(/\s+/g, " ").trim();
 }
@@ -50,6 +55,72 @@ const LABEL_NOISE_PREFIX = /^(?:netto[\s-]*(?:f\u00fcllmenge|fullmenge|inhalt)?|
 
 function stripLabelNoise(line) {
   return String(line || "").replace(LABEL_NOISE_PREFIX, "").trim();
+}
+
+// Bekannte Zutaten (Wissensbasis) für die Mehrfach-Produkt-Trennung.
+const KNOWN_NORMS = getKnownIngredients()
+  .map((n) => normalize(n))
+  .filter((n) => n && n.length >= 3)
+  .sort((a, b) => b.length - a.length);
+
+const KNOWN_LABELS = getKnownIngredients()
+  .filter((n) => n && n.length >= 3)
+  .sort((a, b) => b.length - a.length);
+
+function hasLabel(text) {
+  const n = normalize(text);
+  for (const name of KNOWN_NORMS) {
+    let idx = n.indexOf(name);
+    while (idx !== -1) {
+      const beforeOk = idx === 0 || n[idx - 1] === " ";
+      const end = idx + name.length;
+      const afterOk = end >= n.length || n[end] === " ";
+      if (beforeOk && afterOk) return true;
+      idx = n.indexOf(name, idx + 1);
+    }
+  }
+  return false;
+}
+
+// Mehrere Produkte in EINER OCR-Zeile erkennen und in Einzelzeilen
+// zerlegen, damit jedes Produkt seine eigene Menge behält:
+//   „2 Tomaten, 1 Gurke, 500 g Mehl“ → 3 Zeilen
+//   „2x Tomaten 3x Zwiebeln“         → 2 Zeilen
+//   „Tomaten 2 Zwiebeln“             → 2 Zeilen
+function splitMultiProductLines(raw) {
+  const lines = String(raw || "").split(/\r?\n/);
+  const out = [];
+  const labelSrc = KNOWN_LABELS.map(escapeRegExp).join("|");
+  const countSplitRe = labelSrc
+    ? new RegExp("(" + labelSrc + ")\\s+(\\d+)\\s+(?=" + labelSrc + "\\b)", "gi")
+    : null;
+
+  for (const rawLine of lines) {
+    let line = rawLine.replace(/\s+/g, " ").trim();
+    if (line.length < 2) continue;
+
+    // „2x Tomaten“ / „3× Zwiebeln“ → Zählmenge ohne Multiplikator
+    line = line.replace(/(\d+)\s*[x×]\s*/gi, "$1 ");
+
+    // Klare Trennzeichen (Komma/Semikolon/…) mit >= 2 Labels → aufteilen
+    const parts = line.split(/\s*(?:,|;|·|•|\|)\s*/).filter(Boolean);
+    if (parts.length >= 2 && parts.filter(hasLabel).length >= 2) {
+      out.push(...parts);
+      continue;
+    }
+
+    // Zählmenge ohne Einheit zwischen zwei Labels („Tomaten 2 Zwiebeln“)
+    if (countSplitRe) {
+      const split = line.replace(countSplitRe, "$1\n$2 ");
+      if (split !== line) {
+        out.push(...split.split(/\n+/).map((p) => p.trim()).filter(Boolean));
+        continue;
+      }
+    }
+
+    out.push(line);
+  }
+  return out.join("\n");
 }
 
 export function preprocessOcrText(raw) {
@@ -74,12 +145,40 @@ const ESTIMATED_UNIT = {
   Portion: 1, Schale: 1, "T\u00fcte": 1, "P\u00e4ckchen": 1, "Fl\u00e4schchen": 1, Tube: 1, "W\u00fcrfel": 1,
 };
 
+// Typische Packungsgrößen, wenn das Label bekannt ist, aber keine Menge
+// gelesen werden konnte. Verbessert die Schätzung für Alltagsprodukte.
+const TYPICAL_SIZE = {
+  wasser: { amount: 1.5, unit: "l" },
+  milch: { amount: 1, unit: "l" },
+  nutella: { amount: 450, unit: "g" },
+  schokocreme: { amount: 400, unit: "g" },
+  erdnussbutter: { amount: 350, unit: "g" },
+  mehl: { amount: 1000, unit: "g" },
+  zucker: { amount: 1000, unit: "g" },
+  reis: { amount: 500, unit: "g" },
+  nudeln: { amount: 500, unit: "g" },
+  olivenöl: { amount: 500, unit: "ml" },
+  joghurt: { amount: 500, unit: "g" },
+  "käse": { amount: 200, unit: "g" },
+  kaffee: { amount: 500, unit: "g" },
+  haferflocken: { amount: 500, unit: "g" },
+  tomaten: { amount: 500, unit: "g" },
+  kartoffeln: { amount: 1000, unit: "g" },
+  sahne: { amount: 200, unit: "ml" },
+  butter: { amount: 250, unit: "g" },
+  eier: { amount: 6, unit: "Stück" },
+};
+
 function estimateQuantity(name, unit) {
   const u = unit || "";
   const n = normalize(name);
   if (n === "eier") return { amount: 6, unit: "St\u00fcck", estimated: true };
   if (n === "butter" && (u === "g" || u === "")) return { amount: 250, unit: "g", estimated: true };
   if (n === "sahne" && (u === "ml" || u === "")) return { amount: 200, unit: "ml", estimated: true };
+  const typical = TYPICAL_SIZE[n];
+  if (typical && (u === "" || u === typical.unit)) {
+    return { amount: typical.amount, unit: typical.unit, estimated: true };
+  }
   if (ESTIMATED_UNIT[u] != null) return { amount: ESTIMATED_UNIT[u], unit: u, estimated: true };
   return { amount: null, unit: u, estimated: false };
 }
@@ -87,7 +186,8 @@ function estimateQuantity(name, unit) {
 // Gleiche Signatur wie synaptic.js, aber mit Vorverarbeitung davor
 // und anschliessender Mengen-Schaetzung ("estimated" = in der UI als ca.).
 export function extractFromOcr(raw, vocab) {
-  const items = baseExtractFromOcr(preprocessOcrText(raw), vocab);
+  const cleaned = preprocessOcrText(splitMultiProductLines(raw));
+  const items = baseExtractFromOcr(cleaned, vocab);
   return items.map((it) => {
     if (!it.sure || it.amount != null) return it;
     const est = estimateQuantity(it.name, it.unit);

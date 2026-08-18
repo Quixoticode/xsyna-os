@@ -1,5 +1,5 @@
 // ============================================================
-// xSyna — Rezeptliste (/recipe-list)
+// xSyna — Rezeptliste (/recipe-list) v2
 // Bestand verwalten · Rezepte finden · Einkaufslisten smart bauen
 // Powered by Synaptic Foundation Model (lokal im Browser)
 //
@@ -38,6 +38,7 @@ import {
   fetchWebCategories,
   WEB_PROVIDERS,
 } from "./js/web-recipes.js";
+import { openXscan } from "./js/xscan.js";
 
 const $ = (id) => document.getElementById(id);
 const LS = {
@@ -179,6 +180,20 @@ const supabase = {
     });
   }
 })();
+
+// xScan-Button im Header verdrahten (standalone Live-Erkennung).
+$("btn-xscan")?.addEventListener("click", () => openXscan({
+  inventory: state.inventory,
+  persistInventory,
+  renderContent,
+  toast,
+  escapeHtml,
+  productIcon,
+  formatAmount,
+  normalize,
+  ICONS,
+  uuid,
+}));
 
 // ============================================================
 // Beispielrezepte (Seed-Daten) – Zutaten werden beim Laden
@@ -954,10 +969,10 @@ function ensureRecipeExtras() {
 
 // SynAI-Empfehlungen (Synaptic Foundation Model) aus dem Bestand.
 // Werden im Rezepte-Tab und im Bestand-Tab angezeigt, damit die
-// Empfehlung sofort sichtbar ist, sobald >= 2 Artikel im Bestand sind.
+// Empfehlung sofort sichtbar ist, sobald >= 2 Artikel im Bestand sind. (hero)
 function synaiSuggestionsHtml() {
   state.currentSuggestions = state.inventory.length >= 2
-    ? generateRecipeSuggestions(state.inventory, { limit: 3 })
+    ? generateRecipeSuggestions(state.inventory, { limit: 1 })
     : [];
   if (!state.currentSuggestions.length) return "";
   return renderSuggestionSection(state.currentSuggestions);

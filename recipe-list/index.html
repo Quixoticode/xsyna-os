@@ -615,6 +615,22 @@
         background: linear-gradient(180deg, var(--bg-card), rgba(251, 191, 36, 0.04));
       }
       .rec-sugg-card:hover { border-color: rgba(251, 191, 36, 0.6); box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.12); }
+      .rec-cards:has(> .rec-sugg-card:only-child) { display: block; }
+      .rec-sugg-card:only-child { padding: 24px; }
+      .rec-sugg-card:only-child h3 { font-size: 1.35rem; }
+      .rec-sugg-card:only-child .rec-recipe-actions { padding-top: 14px; }
+      /* ---------- xScan (Live-Erkennung) ---------- */
+      .rec-xscan-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+      .rec-xscan-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        transition: all var(--transition);
+      }
+      .rec-xscan-item.on { border-color: rgba(163, 230, 53, 0.5); background: var(--lime-soft); }
+      .rec-xscan-empty { color: var(--text-muted); font-size: 0.8rem; padding: 8px 0; }
 
       /* ---------- Schnellauswahl (Label-Suche) ---------- */
       .rec-suggest {
@@ -691,7 +707,8 @@
           <div class="app-title">Rezeptliste</div>
           <div class="app-sub">Standalone · lokal · offline</div>
         </div>
-        <button id="btn-install" class="btn btn-lime btn-sm" style="margin-left: auto; display: none;">📲 Installieren</button>
+        <button id="btn-xscan" class="btn btn-lime btn-sm" style="margin-left: auto;">✦ xScan</button>
+        <button id="btn-install" class="btn btn-lime btn-sm" style="display: none;">📲 Installieren</button>
       </div>
     </header>
 
